@@ -18,13 +18,13 @@ import {
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw redirect({ to: "/login" });
+    if (!user) throw redirect({ to: "/admin-login" });
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
-    if (profile?.role !== "admin") throw redirect({ to: "/" });
+    if (profile?.role !== "admin") throw redirect({ to: "/admin-login" });
   },
   component: AdminPage,
 });
