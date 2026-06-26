@@ -175,12 +175,17 @@ function UsersTab() {
   }, []);
 
   async function suspendUser(id: string) {
-    // Mark in local state — full suspend requires service role
     setUsers((prev) => prev.map((u) => u.id === id ? { ...u, suspended: true } : u));
   }
 
   async function activateUser(id: string) {
     setUsers((prev) => prev.map((u) => u.id === id ? { ...u, suspended: false } : u));
+  }
+
+  async function deleteUser(id: string) {
+    if (!confirm("Remove this user from the CMS? This only removes their profile record.")) return;
+    await supabase.from("profiles").delete().eq("id", id);
+    setUsers((prev) => prev.filter((u) => u.id !== id));
   }
 
   async function changeRole(id: string, role: string) {
@@ -248,6 +253,7 @@ function UsersTab() {
                       ? <button onClick={() => activateUser(u.id)} className="rounded px-2 py-0.5 text-xs bg-emerald-900/50 text-emerald-400 hover:bg-emerald-900">Activate</button>
                       : <button onClick={() => suspendUser(u.id)} className="rounded px-2 py-0.5 text-xs bg-red-900/30 text-red-400 hover:bg-red-900/60">Suspend</button>
                     }
+                    <button onClick={() => deleteUser(u.id)} className="rounded px-2 py-0.5 text-xs border border-red-900/40 text-red-400 hover:bg-red-900/20 ml-1">Delete</button>
                   </div>
                 </td>
               </tr>
@@ -477,8 +483,16 @@ function ListingsTab() {
   }
 
   async function rejectListing(id: string) {
+    if (!confirm("Delete this listing?")) return;
     await supabase.from("listings").delete().eq("id", id);
     setItems((prev) => prev.filter((l) => l.id !== id));
+  }
+
+  async function editListing(l: any) {
+    const newTitle = prompt("Edit title:", l.title);
+    if (!newTitle || newTitle === l.title) return;
+    await supabase.from("listings").update({ title: newTitle }).eq("id", l.id);
+    setItems((prev) => prev.map((x) => x.id === l.id ? { ...x, title: newTitle } : x));
   }
 
   const filtered = search.trim()
@@ -532,7 +546,8 @@ function ListingsTab() {
                     <div className="flex gap-1">
                       <button onClick={() => approveListing(l.id)} className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-emerald-400" title="Approve"><Check className="h-3.5 w-3.5" /></button>
                       <button onClick={() => featureListing(l.id)} className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-gold" title="Feature"><Star className="h-3.5 w-3.5" /></button>
-                      <button onClick={() => rejectListing(l.id)} className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-red-400" title="Reject/Delete"><X className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => editListing(l)} className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-blue-400" title="Edit"><FileText className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => rejectListing(l.id)} className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-red-400" title="Delete"><X className="h-3.5 w-3.5" /></button>
                     </div>
                   </td>
                 </tr>
@@ -611,27 +626,115 @@ function EnquiriesTab() {
 }
 
 function CategoriesTab() {
+  const [cats, setCats] = useState(CATEGORIES_DATA.map((c, i) => ({ ...c, id: i })));
+  const [editing, setEditing] = useState<{ id: number; name: string } | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [editName, setEditName] = useState("");
+
+  function addCategory() {
+    if (!newName.trim()) return;
+    setCats((prev) => [...prev, { id: Date.now(), name: newName.trim(), count: 0, active: true }]);
+    setNewName("");
+    setAdding(false);
+  }
+
+  function saveEdit() {
+    if (!editName.trim() || !editing) return;
+    setCats((prev) => prev.map((c) => c.id === editing.id ? { ...c, name: editName.trim() } : c));
+    setEditing(null);
+  }
+
+  function deleteCategory(id: number) {
+    if (!confirm("Delete this category?")) return;
+    setCats((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  function toggleActive(id: number) {
+    setCats((prev) => prev.map((c) => c.id === id ? { ...c, active: !c.active } : c));
+  }
+
   return (
-    <div className="rounded-xl border border-[#2a3d52] overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-[#243547]">
-          <tr>
-            {["Category","Listings","Active","Actions"].map((h) => (
-              <th key={h} className="p-3 text-left text-xs font-medium text-white/50">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#2a3d52]">
-          {CATEGORIES_DATA.map((c) => (
-            <tr key={c.name} className="hover:bg-[#243547]">
-              <td className="p-3 text-white font-medium">{c.name}</td>
-              <td className="p-3 text-white/60">{c.count.toLocaleString()}</td>
-              <td className="p-3"><span className="rounded-full bg-emerald-900/50 px-2 py-0.5 text-xs text-emerald-400">Active</span></td>
-              <td className="p-3"><button className="rounded border border-[#2a3d52] px-2 py-0.5 text-xs text-white/60 hover:text-white">Edit</button></td>
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          onClick={() => { setAdding(true); setNewName(""); }}
+          className="flex items-center gap-2 rounded-lg bg-[#C8922A] hover:bg-[#a07020] px-4 py-2 text-sm font-semibold text-white transition-colors"
+        >
+          <Plus className="h-4 w-4" /> Add Category
+        </button>
+      </div>
+
+      {adding && (
+        <div className="flex gap-2 rounded-xl border border-[#C8922A]/50 bg-[#1C2B3A] p-3">
+          <input
+            autoFocus
+            className="flex-1 rounded-lg border border-[#2a3d52] bg-[#0D1B25] px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-[#C8922A]"
+            placeholder="Category name…"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addCategory(); if (e.key === "Escape") setAdding(false); }}
+          />
+          <button onClick={addCategory} className="rounded-lg bg-[#C8922A] px-3 py-2 text-sm font-semibold text-white hover:bg-[#a07020]">Add</button>
+          <button onClick={() => setAdding(false)} className="rounded-lg border border-[#2a3d52] px-3 py-2 text-sm text-white/50 hover:text-white">Cancel</button>
+        </div>
+      )}
+
+      <div className="rounded-xl border border-[#2a3d52] overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-[#243547]">
+            <tr>
+              {["Category","Listings","Status","Actions"].map((h) => (
+                <th key={h} className="p-3 text-left text-xs font-medium text-white/50">{h}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-[#2a3d52]">
+            {cats.length === 0 && (
+              <tr><td colSpan={4} className="p-6 text-center text-white/40 text-sm">No categories yet.</td></tr>
+            )}
+            {cats.map((c) => (
+              <tr key={c.id} className="hover:bg-[#243547]">
+                <td className="p-3 text-white font-medium">
+                  {editing?.id === c.id ? (
+                    <div className="flex gap-2">
+                      <input
+                        autoFocus
+                        className="rounded border border-[#C8922A] bg-[#0D1B25] px-2 py-1 text-sm text-white outline-none"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditing(null); }}
+                      />
+                      <button onClick={saveEdit} className="rounded bg-[#C8922A] px-2 py-1 text-xs text-white">Save</button>
+                      <button onClick={() => setEditing(null)} className="rounded border border-[#2a3d52] px-2 py-1 text-xs text-white/50">✕</button>
+                    </div>
+                  ) : c.name}
+                </td>
+                <td className="p-3 text-white/60">{c.count.toLocaleString()}</td>
+                <td className="p-3">
+                  <button onClick={() => toggleActive(c.id)}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${c.active ? "bg-emerald-900/50 text-emerald-400 hover:bg-red-900/30 hover:text-red-400" : "bg-red-900/30 text-red-400 hover:bg-emerald-900/50 hover:text-emerald-400"}`}>
+                    {c.active ? "Active" : "Inactive"}
+                  </button>
+                </td>
+                <td className="p-3">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setEditing({ id: c.id, name: c.name }); setEditName(c.name); }}
+                      className="rounded border border-[#2a3d52] px-2 py-0.5 text-xs text-white/60 hover:text-white hover:border-[#C8922A]"
+                    >Edit</button>
+                    <button
+                      onClick={() => deleteCategory(c.id)}
+                      className="rounded border border-red-900/40 px-2 py-0.5 text-xs text-red-400 hover:bg-red-900/20"
+                    >Delete</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-white/30">{cats.length} categor{cats.length !== 1 ? "ies" : "y"}</p>
     </div>
   );
 }
