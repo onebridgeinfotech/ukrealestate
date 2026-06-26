@@ -1,5 +1,12 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,9 +116,72 @@ function StatCard({ label, value, icon: Icon, sub }: { label: string; value: str
   );
 }
 
+type ListingItem = typeof MOCK_LISTINGS[0];
+
+function EditListingModal({ listing, onSave, onClose }: { listing: ListingItem; onSave: (updated: ListingItem) => void; onClose: () => void }) {
+  const [form, setForm] = useState({ ...listing });
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit Listing</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <Label>Title</Label>
+            <Input className="mt-1" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Category</Label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={form.category}
+                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+              >
+                {["Residential", "Commercial", "Industrial", "Land", "New Build"].map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Status</Label>
+              <select
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={form.status}
+                onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+              >
+                {["Active", "Under Offer", "Draft", "Sold"].map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-md border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button onClick={() => { onSave(form); onClose(); }} className="px-4 py-2 rounded-md bg-[#C8922A] text-white text-sm font-medium hover:bg-[#a07020]">Save Changes</button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SellerDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [listingFilter, setListingFilter] = useState("All");
+  const [listings, setListings] = useState(MOCK_LISTINGS);
+  const [editingListing, setEditingListing] = useState<ListingItem | null>(null);
+
+  function handleSave(updated: ListingItem) {
+    setListings((prev) => prev.map((l) => l.id === updated.id ? updated : l));
+  }
+
+  function handleDelete(id: number) {
+    if (confirm("Delete this listing? This cannot be undone.")) {
+      setListings((prev) => prev.filter((l) => l.id !== id));
+    }
+  }
   const [profile, setProfile] = useState({
     company: "Smith Properties Ltd",
     firstName: "John",
@@ -123,8 +193,8 @@ function SellerDashboard() {
   });
 
   const filteredListings = listingFilter === "All"
-    ? MOCK_LISTINGS
-    : MOCK_LISTINGS.filter((l) => l.status === listingFilter);
+    ? listings
+    : listings.filter((l) => l.status === listingFilter);
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -202,14 +272,14 @@ function SellerDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {MOCK_LISTINGS.slice(0, 5).map((l) => (
+                      {listings.slice(0, 5).map((l) => (
                         <tr key={l.id} className="border-t border-gray-50 hover:bg-gray-50/50">
                           <td className="px-5 py-3 font-medium text-[#0D2B4E]">{l.title}</td>
                           <td className="px-5 py-3 text-gray-600">{l.views.toLocaleString()}</td>
                           <td className="px-5 py-3 text-gray-600">{l.enquiries}</td>
                           <td className="px-5 py-3"><StatusBadge status={l.status} /></td>
                           <td className="px-5 py-3">
-                            <button className="text-[#C8922A] hover:underline text-xs font-semibold">Edit</button>
+                            <button onClick={() => setEditingListing(l)} className="text-[#C8922A] hover:underline text-xs font-semibold">Edit</button>
                           </td>
                         </tr>
                       ))}
@@ -274,13 +344,13 @@ function SellerDashboard() {
                           <td className="px-4 py-3 text-gray-400 text-xs hidden lg:table-cell">{l.date}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-2">
-                              <button className="p-1.5 text-gray-400 hover:text-[#0D2B4E] transition-colors" title="Edit">
+                              <button onClick={() => setEditingListing(l)} className="p-1.5 text-gray-400 hover:text-[#0D2B4E] transition-colors" title="Edit">
                                 <Pencil className="w-4 h-4" />
                               </button>
                               <button className="p-1.5 text-gray-400 hover:text-[#C8922A] transition-colors" title="Feature">
                                 <Star className="w-4 h-4" />
                               </button>
-                              <button className="p-1.5 text-gray-400 hover:text-red-500 transition-colors" title="Delete">
+                              <button onClick={() => handleDelete(l.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors" title="Delete">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
@@ -475,6 +545,15 @@ function SellerDashboard() {
           )}
         </div>
       </main>
+
+      {/* Edit Modal */}
+      {editingListing && (
+        <EditListingModal
+          listing={editingListing}
+          onSave={handleSave}
+          onClose={() => setEditingListing(null)}
+        />
+      )}
 
       {/* Bottom Nav (mobile) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-20 flex">
