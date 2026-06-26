@@ -260,8 +260,190 @@ function UsersTab() {
   );
 }
 
+const EMPTY_FORM = {
+  title: "",
+  category: "Residential",
+  listing_type: "sale",
+  asking_price: "",
+  description: "",
+  city: "",
+  region: "",
+  postcode: "",
+  bedrooms: "",
+  bathrooms: "",
+  floor_area_sqft: "",
+  status: "active",
+  is_featured: false,
+};
+
+function AddListingModal({ onClose, onAdded }: { onClose: () => void; onAdded: (item: any) => void }) {
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function set(key: string, value: any) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.title.trim()) { setError("Title is required."); return; }
+    if (!form.asking_price) { setError("Asking price is required."); return; }
+    setSaving(true);
+    setError("");
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const payload = {
+      title: form.title.trim(),
+      category: form.category,
+      listing_type: form.listing_type,
+      asking_price: parseFloat(form.asking_price.replace(/,/g, "")),
+      description: form.description.trim() || null,
+      city: form.city.trim() || null,
+      region: form.region.trim() || null,
+      postcode: form.postcode.trim() || null,
+      bedrooms: form.bedrooms ? parseInt(form.bedrooms) : null,
+      bathrooms: form.bathrooms ? parseInt(form.bathrooms) : null,
+      floor_area_sqft: form.floor_area_sqft ? parseFloat(form.floor_area_sqft) : null,
+      status: form.status,
+      is_featured: form.is_featured,
+      seller_id: user?.id ?? null,
+    };
+
+    const { data, error: err } = await supabase.from("listings").insert(payload).select().single();
+    if (err) {
+      setError(err.message);
+      setSaving(false);
+      return;
+    }
+    onAdded({
+      id: data.id,
+      ref: "RE-" + data.id.substring(0, 5).toUpperCase(),
+      title: data.title,
+      location: [data.city, data.region].filter(Boolean).join(", "),
+      price: data.asking_price ?? 0,
+      status: data.status,
+    });
+    onClose();
+  }
+
+  const fieldCls = "w-full rounded-lg border border-[#2a3d52] bg-[#0D1B25] px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-[#C8922A]";
+  const labelCls = "block text-xs font-medium text-white/50 mb-1";
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-[#2a3d52] bg-[#1C2B3A] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[#2a3d52] px-6 py-4">
+          <h2 className="font-display font-bold text-white">Add New Listing</h2>
+          <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-[#2a3d52] text-white/40 hover:text-white"><X className="h-4 w-4" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {error && <div className="rounded-lg bg-red-900/30 border border-red-900/50 text-red-400 text-sm px-4 py-3">{error}</div>}
+
+          {/* Title */}
+          <div>
+            <label className={labelCls}>Title *</label>
+            <input className={fieldCls} placeholder="e.g. 4-Bed Detached House, Kensington" value={form.title} onChange={(e) => set("title", e.target.value)} />
+          </div>
+
+          {/* Category + Type */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Category *</label>
+              <select className={fieldCls} value={form.category} onChange={(e) => set("category", e.target.value)}>
+                {["Residential","Commercial","Industrial","Land","New Build","Office"].map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Listing Type *</label>
+              <select className={fieldCls} value={form.listing_type} onChange={(e) => set("listing_type", e.target.value)}>
+                <option value="sale">For Sale</option>
+                <option value="rent">To Let</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Price + Status */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Asking Price (£) *</label>
+              <input className={fieldCls} placeholder="e.g. 450000" value={form.asking_price} onChange={(e) => set("asking_price", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Status</label>
+              <select className={fieldCls} value={form.status} onChange={(e) => set("status", e.target.value)}>
+                <option value="active">Active</option>
+                <option value="draft">Draft</option>
+                <option value="under_offer">Under Offer</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Location */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>City</label>
+              <input className={fieldCls} placeholder="e.g. London" value={form.city} onChange={(e) => set("city", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Region</label>
+              <input className={fieldCls} placeholder="e.g. Greater London" value={form.region} onChange={(e) => set("region", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Postcode</label>
+              <input className={fieldCls} placeholder="e.g. SW1A 1AA" value={form.postcode} onChange={(e) => set("postcode", e.target.value)} />
+            </div>
+          </div>
+
+          {/* Property details */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className={labelCls}>Bedrooms</label>
+              <input type="number" min="0" className={fieldCls} placeholder="0" value={form.bedrooms} onChange={(e) => set("bedrooms", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Bathrooms</label>
+              <input type="number" min="0" className={fieldCls} placeholder="0" value={form.bathrooms} onChange={(e) => set("bathrooms", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelCls}>Floor Area (sq ft)</label>
+              <input type="number" min="0" className={fieldCls} placeholder="0" value={form.floor_area_sqft} onChange={(e) => set("floor_area_sqft", e.target.value)} />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className={labelCls}>Description</label>
+            <textarea className={`${fieldCls} min-h-[100px] resize-y`} placeholder="Property description…" value={form.description} onChange={(e) => set("description", e.target.value)} />
+          </div>
+
+          {/* Featured toggle */}
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div
+              onClick={() => set("is_featured", !form.is_featured)}
+              className={`relative h-5 w-9 rounded-full transition-colors ${form.is_featured ? "bg-[#C8922A]" : "bg-[#2a3d52]"}`}
+            >
+              <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${form.is_featured ? "translate-x-4" : "translate-x-0.5"}`} />
+            </div>
+            <span className="text-sm text-white/70">Mark as Featured listing</span>
+          </label>
+
+          <div className="flex justify-end gap-3 pt-2 border-t border-[#2a3d52]">
+            <button type="button" onClick={onClose} className="rounded-lg border border-[#2a3d52] px-4 py-2 text-sm text-white/60 hover:text-white">Cancel</button>
+            <button type="submit" disabled={saving} className="rounded-lg bg-[#C8922A] hover:bg-[#a07020] disabled:opacity-60 px-5 py-2 text-sm font-semibold text-white transition-colors">
+              {saving ? "Adding…" : "Add Listing"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function ListingsTab() {
   const [items, setItems] = useState(listings);
+  const [search, setSearch] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
 
   useEffect(() => {
     supabase
@@ -299,43 +481,68 @@ function ListingsTab() {
     setItems((prev) => prev.filter((l) => l.id !== id));
   }
 
+  const filtered = search.trim()
+    ? items.filter((l) => l.title?.toLowerCase().includes(search.toLowerCase()) || l.location?.toLowerCase().includes(search.toLowerCase()))
+    : items;
+
   return (
-    <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
-        <input className="w-full rounded-lg border border-[#2a3d52] bg-[#1C2B3A] pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/30 outline-none"
-          placeholder="Search listings..." />
-      </div>
-      <div className="rounded-xl border border-[#2a3d52] overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-[#243547]">
-            <tr>
-              {["Ref","Title","Location","Price","Status","Actions"].map((h) => (
-                <th key={h} className="p-3 text-left text-xs font-medium text-white/50">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#2a3d52]">
-            {items.map((l) => (
-              <tr key={l.id} className="hover:bg-[#243547]">
-                <td className="p-3 text-xs text-white/40">{l.ref}</td>
-                <td className="p-3 text-white max-w-48 truncate">{l.title}</td>
-                <td className="p-3 text-white/60 text-xs">{l.location}</td>
-                <td className="p-3 text-gold font-medium">{formatPrice(l.price)}</td>
-                <td className="p-3"><span className={`rounded-full px-2 py-0.5 text-xs ${l.status === "active" ? "bg-emerald-900/50 text-emerald-400" : l.status === "under_offer" ? "bg-blue-900/50 text-blue-400" : "bg-amber-900/50 text-amber-400"}`}>{l.status === "draft" ? "pending review" : l.status}</span></td>
-                <td className="p-3">
-                  <div className="flex gap-1">
-                    <button onClick={() => approveListing(l.id)} className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-emerald-400" title="Approve"><Check className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => featureListing(l.id)} className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-gold" title="Feature"><Star className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => rejectListing(l.id)} className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-red-400" title="Reject/Delete"><X className="h-3.5 w-3.5" /></button>
-                  </div>
-                </td>
+    <>
+      {showAdd && (
+        <AddListingModal
+          onClose={() => setShowAdd(false)}
+          onAdded={(item) => setItems((prev) => [item, ...prev])}
+        />
+      )}
+      <div className="space-y-4">
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+            <input className="w-full rounded-lg border border-[#2a3d52] bg-[#1C2B3A] pl-9 pr-3 py-2 text-sm text-white placeholder:text-white/30 outline-none"
+              placeholder="Search listings..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 rounded-lg bg-[#C8922A] hover:bg-[#a07020] px-4 py-2 text-sm font-semibold text-white transition-colors shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            Add Listing
+          </button>
+        </div>
+        <div className="rounded-xl border border-[#2a3d52] overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-[#243547]">
+              <tr>
+                {["Ref","Title","Location","Price","Status","Actions"].map((h) => (
+                  <th key={h} className="p-3 text-left text-xs font-medium text-white/50">{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-[#2a3d52]">
+              {filtered.length === 0 && (
+                <tr><td colSpan={6} className="p-6 text-center text-white/40 text-sm">No listings found.</td></tr>
+              )}
+              {filtered.map((l) => (
+                <tr key={l.id} className="hover:bg-[#243547]">
+                  <td className="p-3 text-xs text-white/40">{l.ref}</td>
+                  <td className="p-3 text-white max-w-48 truncate">{l.title}</td>
+                  <td className="p-3 text-white/60 text-xs">{l.location}</td>
+                  <td className="p-3 text-gold font-medium">{formatPrice(l.price)}</td>
+                  <td className="p-3"><span className={`rounded-full px-2 py-0.5 text-xs ${l.status === "active" ? "bg-emerald-900/50 text-emerald-400" : l.status === "under_offer" ? "bg-blue-900/50 text-blue-400" : "bg-amber-900/50 text-amber-400"}`}>{l.status === "draft" ? "pending review" : l.status}</span></td>
+                  <td className="p-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => approveListing(l.id)} className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-emerald-400" title="Approve"><Check className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => featureListing(l.id)} className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-gold" title="Feature"><Star className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => rejectListing(l.id)} className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-red-400" title="Reject/Delete"><X className="h-3.5 w-3.5" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-white/30">{filtered.length} listing{filtered.length !== 1 ? "s" : ""}</p>
       </div>
-    </div>
+    </>
   );
 }
 
