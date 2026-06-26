@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, List, MessageSquare, Tag, MapPin, FileText,
-  CreditCard, BarChart2, Search, Check, X, Star, Menu, ChevronRight
+  CreditCard, BarChart2, Search, Check, X, Star, Menu, ChevronRight,
+  LogOut, Plus, Trash2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -158,11 +159,42 @@ function DashboardTab() {
 function UsersTab() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
-  const filtered = MOCK_USERS.filter((u) => {
-    const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("id, first_name, last_name, email, role, created_at")
+      .order("created_at", { ascending: false })
+      .limit(100)
+      .then(({ data }) => {
+        if (data) setUsers(data);
+        setLoading(false);
+      });
+  }, []);
+
+  async function suspendUser(id: string) {
+    // Mark in local state — full suspend requires service role
+    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, suspended: true } : u));
+  }
+
+  async function activateUser(id: string) {
+    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, suspended: false } : u));
+  }
+
+  async function changeRole(id: string, role: string) {
+    await supabase.from("profiles").update({ role }).eq("id", id);
+    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role } : u));
+  }
+
+  const filtered = users.filter((u) => {
+    const name = `${u.first_name ?? ""} ${u.last_name ?? ""}`.toLowerCase();
+    const matchSearch = name.includes(search.toLowerCase()) || (u.email ?? "").toLowerCase().includes(search.toLowerCase());
     const matchRole = roleFilter === "All" || u.role === roleFilter;
     return matchSearch && matchRole;
   });
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3">
@@ -172,9 +204,9 @@ function UsersTab() {
             placeholder="Search users..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-1">
-          {["All","Buyer","Seller","Agent"].map((r) => (
+          {["All","buyer","seller","agent","admin"].map((r) => (
             <button key={r} onClick={() => setRoleFilter(r)}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${roleFilter === r ? "bg-primary text-white" : "border border-[#2a3d52] text-white/60 hover:text-white"}`}>
+              className={`rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors ${roleFilter === r ? "bg-primary text-white" : "border border-[#2a3d52] text-white/60 hover:text-white"}`}>
               {r}
             </button>
           ))}
@@ -184,24 +216,38 @@ function UsersTab() {
         <table className="w-full text-sm">
           <thead className="bg-[#243547]">
             <tr>
-              {["ID","Name","Email","Role","Status","Joined","Actions"].map((h) => (
+              {["Name","Email","Role","Joined","Actions"].map((h) => (
                 <th key={h} className="p-3 text-left text-xs font-medium text-white/50">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-[#2a3d52]">
+            {loading && (
+              <tr><td colSpan={5} className="p-6 text-center text-white/40 text-sm">Loading users…</td></tr>
+            )}
+            {!loading && filtered.length === 0 && (
+              <tr><td colSpan={5} className="p-6 text-center text-white/40 text-sm">No users found.</td></tr>
+            )}
             {filtered.map((u) => (
               <tr key={u.id} className="hover:bg-[#243547]">
-                <td className="p-3 text-xs text-white/40">{u.id}</td>
-                <td className="p-3 text-white font-medium">{u.name}</td>
+                <td className="p-3 text-white font-medium">{[u.first_name, u.last_name].filter(Boolean).join(" ") || "—"}</td>
                 <td className="p-3 text-white/60 text-xs">{u.email}</td>
-                <td className="p-3"><span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs text-primary">{u.role}</span></td>
-                <td className="p-3"><span className={`rounded-full px-2 py-0.5 text-xs ${u.status === "active" ? "bg-emerald-900/50 text-emerald-400" : "bg-red-900/50 text-red-400"}`}>{u.status}</span></td>
-                <td className="p-3 text-xs text-white/40">{u.joined}</td>
+                <td className="p-3">
+                  <select
+                    value={u.role}
+                    onChange={(e) => changeRole(u.id, e.target.value)}
+                    className="rounded bg-[#0D1B25] border border-[#2a3d52] text-xs text-white px-2 py-0.5 outline-none"
+                  >
+                    {["buyer","seller","agent","admin"].map((r) => <option key={r}>{r}</option>)}
+                  </select>
+                </td>
+                <td className="p-3 text-xs text-white/40">{u.created_at ? new Date(u.created_at).toLocaleDateString("en-GB") : "—"}</td>
                 <td className="p-3">
                   <div className="flex gap-1">
-                    <button className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-white"><Check className="h-3.5 w-3.5" /></button>
-                    <button className="rounded p-1 hover:bg-[#2a3d52] text-white/40 hover:text-red-400"><X className="h-3.5 w-3.5" /></button>
+                    {u.suspended
+                      ? <button onClick={() => activateUser(u.id)} className="rounded px-2 py-0.5 text-xs bg-emerald-900/50 text-emerald-400 hover:bg-emerald-900">Activate</button>
+                      : <button onClick={() => suspendUser(u.id)} className="rounded px-2 py-0.5 text-xs bg-red-900/30 text-red-400 hover:bg-red-900/60">Suspend</button>
+                    }
                   </div>
                 </td>
               </tr>
@@ -209,6 +255,7 @@ function UsersTab() {
           </tbody>
         </table>
       </div>
+      <p className="text-xs text-white/30">{filtered.length} user{filtered.length !== 1 ? "s" : ""} shown</p>
     </div>
   );
 }
@@ -293,20 +340,62 @@ function ListingsTab() {
 }
 
 function EnquiriesTab() {
+  const [enquiries, setEnquiries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("enquiries")
+      .select("id, message, status, created_at, listing_id, listings(title), sender_id, profiles(first_name, last_name, email)")
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data, error }) => {
+        if (data && !error) setEnquiries(data);
+        else setEnquiries(MOCK_ENQUIRIES.map((e, i) => ({ id: i, mock: true, from: e.from, to: e.to, property: e.property, date: e.date, status: e.status })));
+        setLoading(false);
+      });
+  }, []);
+
+  async function deleteEnquiry(id: any) {
+    await supabase.from("enquiries").delete().eq("id", id);
+    setEnquiries((prev) => prev.filter((e) => e.id !== id));
+  }
+
+  if (loading) return <div className="text-white/40 text-sm p-6">Loading enquiries…</div>;
+
+  if (enquiries.length === 0) return <div className="text-white/40 text-sm p-6">No enquiries yet.</div>;
+
   return (
-    <div className="space-y-4">
-      {MOCK_ENQUIRIES.map((e, i) => (
-        <div key={i} className="rounded-xl border border-[#2a3d52] bg-[#1C2B3A] p-4">
+    <div className="space-y-3">
+      {enquiries.map((e) => (
+        <div key={e.id} className="rounded-xl border border-[#2a3d52] bg-[#1C2B3A] p-4">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-white">{e.from} → {e.to}</p>
-              <p className="text-xs text-white/50 mt-0.5">Re: {e.property} · {e.date}</p>
+            <div className="flex-1 min-w-0">
+              {e.mock ? (
+                <>
+                  <p className="text-sm font-medium text-white">{e.from} → {e.to}</p>
+                  <p className="text-xs text-white/50 mt-0.5">Re: {e.property} · {e.date}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-white">
+                    {e.profiles ? `${e.profiles.first_name ?? ""} ${e.profiles.last_name ?? ""}`.trim() || e.profiles.email : "Unknown"}
+                  </p>
+                  <p className="text-xs text-white/50 mt-0.5">
+                    Re: {e.listings?.title ?? "Listing"} · {new Date(e.created_at).toLocaleDateString("en-GB")}
+                  </p>
+                  {e.message && <p className="text-xs text-white/40 mt-1 line-clamp-2">{e.message}</p>}
+                </>
+              )}
             </div>
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${e.status === "open" ? "bg-blue-900/50 text-blue-400" : "bg-emerald-900/50 text-emerald-400"}`}>{e.status}</span>
+            <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${e.status === "open" || e.status === "pending" ? "bg-blue-900/50 text-blue-400" : "bg-emerald-900/50 text-emerald-400"}`}>
+              {e.status ?? "open"}
+            </span>
           </div>
           <div className="mt-3 flex gap-2">
-            <button className="rounded-md border border-[#2a3d52] px-3 py-1 text-xs text-white/60 hover:text-white">View Thread</button>
-            <button className="rounded-md border border-red-900/50 px-3 py-1 text-xs text-red-400 hover:bg-red-900/20">Flag</button>
+            <button onClick={() => !e.mock && deleteEnquiry(e.id)} className="rounded-md border border-red-900/50 px-3 py-1 text-xs text-red-400 hover:bg-red-900/20">
+              Delete
+            </button>
           </div>
         </div>
       ))}
@@ -409,21 +498,83 @@ function ReportsTab() {
   );
 }
 
-const TAB_CONTENT: Record<string, React.ReactNode> = {
-  dashboard: <DashboardTab />,
-  users: <UsersTab />,
-  listings: <ListingsTab />,
-  enquiries: <EnquiriesTab />,
-  categories: <CategoriesTab />,
-  locations: <div className="text-white/50 text-sm">Locations management — coming soon.</div>,
-  cms: <CmsTab />,
-  packages: <PackagesTab />,
-  reports: <ReportsTab />,
-};
+function LocationsTab() {
+  const UK_REGIONS = [
+    { name: "London", cities: ["Central London", "East London", "North London", "South London", "West London"] },
+    { name: "South East", cities: ["Brighton", "Oxford", "Reading", "Southampton", "Canterbury"] },
+    { name: "North West", cities: ["Manchester", "Liverpool", "Preston", "Chester", "Blackpool"] },
+    { name: "Yorkshire", cities: ["Leeds", "Sheffield", "Bradford", "Hull", "York"] },
+    { name: "West Midlands", cities: ["Birmingham", "Coventry", "Wolverhampton", "Stoke-on-Trent"] },
+    { name: "East of England", cities: ["Cambridge", "Norwich", "Ipswich", "Peterborough"] },
+    { name: "South West", cities: ["Bristol", "Bath", "Exeter", "Plymouth", "Gloucester"] },
+    { name: "Scotland", cities: ["Edinburgh", "Glasgow", "Aberdeen", "Dundee", "Inverness"] },
+    { name: "Wales", cities: ["Cardiff", "Swansea", "Newport", "Wrexham"] },
+    { name: "Northern Ireland", cities: ["Belfast", "Derry", "Lisburn", "Newry"] },
+  ];
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-white/40">UK regions and cities used for listing search filters. Toggle a region to view cities.</p>
+      {UK_REGIONS.map((r) => (
+        <div key={r.name} className="rounded-xl border border-[#2a3d52] bg-[#1C2B3A] overflow-hidden">
+          <button
+            onClick={() => setOpen(open === r.name ? null : r.name)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-white hover:bg-[#243547] transition-colors"
+          >
+            <span>{r.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/40">{r.cities.length} cities</span>
+              <ChevronRight className={`h-4 w-4 text-white/40 transition-transform ${open === r.name ? "rotate-90" : ""}`} />
+            </div>
+          </button>
+          {open === r.name && (
+            <div className="border-t border-[#2a3d52] px-4 py-3">
+              <div className="flex flex-wrap gap-2">
+                {r.cities.map((c) => (
+                  <span key={c} className="rounded-full border border-[#2a3d52] px-3 py-1 text-xs text-white/70">{c}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TAB_CONTENT_MAP({ activeTab }: { activeTab: string }) {
+  const map: Record<string, React.ReactNode> = {
+    dashboard: <DashboardTab />,
+    users: <UsersTab />,
+    listings: <ListingsTab />,
+    enquiries: <EnquiriesTab />,
+    categories: <CategoriesTab />,
+    locations: <LocationsTab />,
+    cms: <CmsTab />,
+    packages: <PackagesTab />,
+    reports: <ReportsTab />,
+  };
+  return <>{map[activeTab] ?? <div className="text-white/50 text-sm">Select a section.</div>}</>;
+}
 
 function AdminPage() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [adminEmail, setAdminEmail] = useState("admin@marketuk.co.uk");
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setAdminEmail(data.user.email);
+    });
+  }, []);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    navigate({ to: "/admin-login" });
+  }
+
+  const initials = adminEmail.slice(0, 1).toUpperCase();
 
   return (
     <div className="fixed inset-0 flex bg-[#0F1C28] text-white z-50 overflow-hidden">
@@ -442,8 +593,14 @@ function AdminPage() {
             </button>
           ))}
         </nav>
-        <div className="border-t border-[#1C2B3A] p-4 text-xs text-white/30">
-          MarketUK Admin v1.0
+        <div className="border-t border-[#1C2B3A] p-3">
+          <button
+            onClick={handleSignOut}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-white/50 hover:bg-red-900/30 hover:text-red-400 transition-colors"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            Sign Out
+          </button>
         </div>
       </aside>
 
@@ -455,17 +612,20 @@ function AdminPage() {
             <button onClick={() => setSidebarOpen((v) => !v)} className="rounded-md p-1.5 hover:bg-[#1C2B3A] text-white/60 hover:text-white">
               <Menu className="h-5 w-5" />
             </button>
-            <h1 className="font-semibold capitalize">{activeTab}</h1>
+            <h1 className="font-semibold capitalize">{TABS.find((t) => t.id === activeTab)?.label ?? activeTab}</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-white/50">admin@marketuk.co.uk</span>
-            <div className="grid h-8 w-8 place-items-center rounded-full bg-primary text-xs font-bold">A</div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-white/50 hidden sm:block">{adminEmail}</span>
+            <div className="grid h-8 w-8 place-items-center rounded-full bg-primary text-xs font-bold">{initials}</div>
+            <button onClick={handleSignOut} title="Sign out" className="rounded-md p-1.5 hover:bg-red-900/30 text-white/40 hover:text-red-400 transition-colors">
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </header>
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-6">
-          {TAB_CONTENT[activeTab] ?? <div className="text-white/50">Select a section from the sidebar.</div>}
+          <TAB_CONTENT_MAP activeTab={activeTab} />
         </main>
       </div>
     </div>
