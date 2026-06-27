@@ -1,7 +1,8 @@
-﻿import { useState } from "react";
+﻿import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import { Home, Heart, Search, MessageSquare, Clock, User, Eye, Trash2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -248,7 +249,16 @@ function ProfileSection() {
 }
 
 function BuyerDashboard() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
+
+  useEffect(() => {
+    if (!loading && !user) navigate({ to: "/login" });
+  }, [user, loading]);
+
+  if (loading || !user) return null;
+
   const sections: Record<string, React.ReactNode> = {
     overview: <OverviewSection />,
     saved: <SavedSection />,

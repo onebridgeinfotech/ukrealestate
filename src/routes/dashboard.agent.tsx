@@ -1,7 +1,8 @@
-﻿import { useState } from "react";
+﻿import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -131,6 +132,11 @@ function StatCard({ label, value, icon: Icon, sub }: { label: string; value: str
 }
 
 function AgentDashboard() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => { if (!loading && !user) navigate({ to: "/login" }); }, [user, loading]);
+  if (loading || !user) return null;
+
   const [activeTab, setActiveTab] = useState("overview");
   const [kanban, setKanban] = useState(KANBAN);
   const [listingFilter, setListingFilter] = useState("All");

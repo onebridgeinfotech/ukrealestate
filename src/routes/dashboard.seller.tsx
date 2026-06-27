@@ -1,7 +1,8 @@
-﻿import { useState } from "react";
+﻿import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import {
   Dialog,
   DialogContent,
@@ -205,6 +206,11 @@ function ReplyModal({ enq, onClose }: { enq: EnquiryItem; onClose: () => void })
 }
 
 function SellerDashboard() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => { if (!loading && !user) navigate({ to: "/login" }); }, [user, loading]);
+  if (loading || !user) return null;
+
   const [activeTab, setActiveTab] = useState("overview");
   const [listingFilter, setListingFilter] = useState("All");
   const [listings, setListings] = useState(MOCK_LISTINGS);

@@ -6,7 +6,9 @@ import {
   CreditCard, BarChart2, Search, Check, X, Star, Menu, ChevronRight,
   LogOut, Plus, Trash2, Flame, UserCheck, Phone, Mail, Calendar,
   Building2, Home, Briefcase, TrendingUp, Download, StickyNote,
+  ImagePlus, ImageOff,
 } from "lucide-react";
+import { uploadMultipleToCloudinary } from "@/lib/cloudinary";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -290,6 +292,8 @@ function AddListingModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [imagePreviews, setImagePreviews] = useState<{ file: File; url: string }[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   function set(key: string, value: any) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -301,6 +305,14 @@ function AddListingModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
     if (!form.asking_price) { setError("Asking price is required."); return; }
     setSaving(true);
     setError("");
+
+    // Upload images if any
+    let imageUrls: string[] = [];
+    if (imagePreviews.length > 0) {
+      setUploadingImages(true);
+      imageUrls = await uploadMultipleToCloudinary(imagePreviews.map((p) => p.file), "marketuk/listings");
+      setUploadingImages(false);
+    }
 
     const { data: { user } } = await supabase.auth.getUser();
     const payload = {
@@ -318,6 +330,7 @@ function AddListingModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
       status: form.status,
       is_featured: form.is_featured,
       seller_id: user?.id ?? null,
+      ...(imageUrls.length > 0 && { images: imageUrls }),
     };
 
     const { data, error: err } = await supabase.from("listings").insert(payload).select().single();
@@ -425,6 +438,36 @@ function AddListingModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
           <div>
             <label className={labelCls}>Description</label>
             <textarea className={`${fieldCls} min-h-[100px] resize-y`} placeholder="Property description…" value={form.description} onChange={(e) => set("description", e.target.value)} />
+          </div>
+
+          {/* Image Upload */}
+          <div>
+            <label className={labelCls}>Property Photos <span className="text-white/30">(up to 20)</span></label>
+            <label className={`flex flex-col items-center justify-center gap-2 w-full rounded-lg border-2 border-dashed border-[#2a3d52] hover:border-[#C8922A]/60 py-6 cursor-pointer transition-colors ${imagePreviews.length > 0 ? "mt-0" : ""}`}>
+              <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => {
+                const files = Array.from(e.target.files ?? []).slice(0, 20 - imagePreviews.length);
+                setImagePreviews((prev) => [...prev, ...files.map((f) => ({ file: f, url: URL.createObjectURL(f) }))]);
+                e.target.value = "";
+              }} />
+              <ImagePlus className="h-7 w-7 text-white/30" />
+              <p className="text-xs text-white/40">Click to add photos, or drag & drop</p>
+              <p className="text-[10px] text-white/20">JPG, PNG, WEBP — first image becomes the featured photo</p>
+            </label>
+            {imagePreviews.length > 0 && (
+              <div className="mt-3 grid grid-cols-4 gap-2">
+                {imagePreviews.map((img, i) => (
+                  <div key={i} className="relative group rounded-lg overflow-hidden aspect-square bg-[#0D1B25] border border-[#2a3d52]">
+                    <img src={img.url} alt="" className="w-full h-full object-cover" />
+                    {i === 0 && <span className="absolute top-1 left-1 rounded text-[9px] font-bold bg-[#C8922A] text-white px-1.5 py-0.5">FEATURED</span>}
+                    <button type="button" onClick={() => setImagePreviews((prev) => { URL.revokeObjectURL(img.url); return prev.filter((_, j) => j !== i); })}
+                      className="absolute top-1 right-1 rounded-full bg-black/70 p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <X className="h-3 w-3 text-white" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {uploadingImages && <p className="text-xs text-[#C8922A] mt-2 flex items-center gap-1">Uploading images…</p>}
           </div>
 
           {/* Featured toggle */}

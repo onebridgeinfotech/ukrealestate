@@ -724,20 +724,20 @@ function PostListing() {
                         alert("Maximum 20 images allowed.");
                         return;
                       }
+                      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
                       for (let i = 0; i < files.length; i++) {
                         const file = files[i];
-                        setUploadProgress(`Uploading ${i + 1} of ${files.length}â€¦`);
                         const tempId = Date.now() + i;
-                        // Add placeholder
-                        setImages((prev) => [...prev, { id: tempId, url: URL.createObjectURL(file), featured: prev.length === 0, uploading: true }]);
-                        const { result, error } = await uploadToCloudinary(file, "marketuk/listings");
-                        if (result) {
+                        const localUrl = URL.createObjectURL(file);
+                        setImages((prev) => [...prev, { id: tempId, url: localUrl, featured: prev.length === 0, uploading: !!cloudName }]);
+                        if (cloudName) {
+                          setUploadProgress(`Uploading ${i + 1} of ${files.length}…`);
+                          const { result, error } = await uploadToCloudinary(file, "marketuk/listings");
                           setImages((prev) => prev.map((img) =>
-                            img.id === tempId ? { ...img, url: result.secureUrl, uploading: false } : img
-                          ));
-                        } else {
-                          setImages((prev) => prev.map((img) =>
-                            img.id === tempId ? { ...img, uploading: false, error: error ?? "Failed" } : img
+                            img.id === tempId
+                              ? result ? { ...img, url: result.secureUrl, uploading: false }
+                                       : { ...img, uploading: false, error: error ?? "Failed" }
+                              : img
                           ));
                         }
                       }
