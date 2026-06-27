@@ -135,9 +135,16 @@ export function Footer() {
           <p className="text-xs text-primary-foreground/40">
             © {new Date().getFullYear()} MarketUK Ltd. All rights reserved. Company No. 12345678. Registered in England &amp; Wales.
           </p>
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-primary-foreground/40">Made with care in the</span>
-            <span className="text-base" aria-label="United Kingdom flag">🇬🇧</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-primary-foreground/40">Built by</span>
+            <a
+              href="https://www.onebridgeinfotech.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-[#C8922A] hover:text-white transition-colors"
+            >
+              Onebridge Infotech
+            </a>
           </div>
         </div>
       </div>
