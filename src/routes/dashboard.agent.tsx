@@ -134,9 +134,6 @@ function StatCard({ label, value, icon: Icon, sub }: { label: string; value: str
 function AgentDashboard() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  useEffect(() => { if (!loading && !user) navigate({ to: "/login" }); }, [user, loading]);
-  if (loading || !user) return null;
-
   const [activeTab, setActiveTab] = useState("overview");
   const [kanban, setKanban] = useState(KANBAN);
   const [listingFilter, setListingFilter] = useState("All");
@@ -154,6 +151,9 @@ function AgentDashboard() {
     ricsNumber: "RICS123456",
     bio: "RICS-accredited estate agent with 15 years of experience across London and the South East. Specialising in high-value residential sales, new build developments, and commercial property acquisition. I pride myself on delivering exceptional client service and achieving the best possible outcomes for both buyers and sellers.",
   });
+
+  useEffect(() => { if (!loading && !user) navigate({ to: "/login" }); }, [user, loading]);
+  if (loading || !user) return null;
 
   function moveToNextStage(leadId: number, currentStage: string) {
     const currentIndex = STAGE_ORDER.indexOf(currentStage);

@@ -208,25 +208,12 @@ function ReplyModal({ enq, onClose }: { enq: EnquiryItem; onClose: () => void })
 function SellerDashboard() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  useEffect(() => { if (!loading && !user) navigate({ to: "/login" }); }, [user, loading]);
-  if (loading || !user) return null;
-
   const [activeTab, setActiveTab] = useState("overview");
   const [listingFilter, setListingFilter] = useState("All");
   const [listings, setListings] = useState(MOCK_LISTINGS);
   const [editingListing, setEditingListing] = useState<ListingItem | null>(null);
   const [replyingTo, setReplyingTo] = useState<EnquiryItem | null>(null);
   const [featuredIds, setFeaturedIds] = useState<number[]>([]);
-
-  function handleSave(updated: ListingItem) {
-    setListings((prev) => prev.map((l) => l.id === updated.id ? updated : l));
-  }
-
-  function handleDelete(id: number) {
-    if (confirm("Delete this listing? This cannot be undone.")) {
-      setListings((prev) => prev.filter((l) => l.id !== id));
-    }
-  }
   const [profile, setProfile] = useState({
     company: "Smith Properties Ltd",
     firstName: "John",
@@ -236,6 +223,9 @@ function SellerDashboard() {
     website: "https://smithproperties.co.uk",
     bio: "Independent property seller based in London with over 10 years of experience in the residential and commercial markets.",
   });
+
+  useEffect(() => { if (!loading && !user) navigate({ to: "/login" }); }, [user, loading]);
+  if (loading || !user) return null;
 
   const filteredListings = listingFilter === "All"
     ? listings
