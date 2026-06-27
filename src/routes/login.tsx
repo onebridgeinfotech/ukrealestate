@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Eye, EyeOff, Chrome, Shield, Users, Award } from "lucide-react";
+import { Eye, EyeOff, Chrome, Shield, Users, Award, Home, Building2, Briefcase, Heart, Search, MessageSquare, Star, BarChart2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import type { UserRole } from "@/lib/database.types";
 
 export const Route = createFileRoute("/login")({
@@ -14,10 +15,46 @@ export const Route = createFileRoute("/login")({
 
 type Tab = "signin" | "register";
 
-const ROLES: { value: UserRole; label: string; desc: string }[] = [
-  { value: "buyer", label: "Buyer", desc: "Search & save properties" },
-  { value: "seller", label: "Seller", desc: "List your property" },
-  { value: "agent", label: "Agent", desc: "Manage client listings" },
+const ROLES: {
+  value: UserRole;
+  label: string;
+  desc: string;
+  icon: React.ElementType;
+  color: string;
+  bg: string;
+  perks: string[];
+  dashboard: string;
+}[] = [
+  {
+    value: "buyer",
+    label: "Buyer",
+    desc: "Find & purchase property",
+    icon: Home,
+    color: "text-sky-600",
+    bg: "bg-sky-50 border-sky-200",
+    perks: ["Save properties", "Book viewings", "Send enquiries"],
+    dashboard: "/dashboard/buyer",
+  },
+  {
+    value: "seller",
+    label: "Seller",
+    desc: "List & sell property",
+    icon: Building2,
+    color: "text-violet-600",
+    bg: "bg-violet-50 border-violet-200",
+    perks: ["Post listings", "Manage enquiries", "Upgrade packages"],
+    dashboard: "/dashboard/seller",
+  },
+  {
+    value: "agent",
+    label: "Agent",
+    desc: "Manage client listings",
+    icon: Briefcase,
+    color: "text-amber-600",
+    bg: "bg-amber-50 border-amber-200",
+    perks: ["RICS-verified badge", "Lead pipeline", "Analytics"],
+    dashboard: "/dashboard/agent",
+  },
 ];
 
 function LoginPage() {
@@ -30,6 +67,7 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [signingInAs, setSigningInAs] = useState<UserRole | null>(null);
 
   // Sign-in
   const [email, setEmail] = useState("");
@@ -50,14 +88,27 @@ function LoginPage() {
     setError(null);
     setLoading(true);
     const { error } = await signIn(email, password);
+    if (error) { setError(error); setLoading(false); return; }
+
+    // Read role from profiles table (source of truth)
+    const { data: { user } } = await supabase.auth.getUser();
+    let role: UserRole = "buyer";
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      role = (profile?.role as UserRole) ?? (user.user_metadata?.role as UserRole) ?? "buyer";
+    }
+
+    setSigningInAs(role);
     setLoading(false);
-    if (error) { setError(error); return; }
-    // Redirect based on role after sign-in
-    const { data: { user } } = await (await import("@/lib/supabase")).supabase.auth.getUser();
-    const role = user?.user_metadata?.role ?? "buyer";
-    if (role === "agent") navigate({ to: "/dashboard/agent" });
-    else if (role === "seller") navigate({ to: "/dashboard/seller" });
-    else navigate({ to: "/dashboard/buyer" });
+    setTimeout(() => {
+      if (role === "agent") navigate({ to: "/dashboard/agent" });
+      else if (role === "seller") navigate({ to: "/dashboard/seller" });
+      else navigate({ to: "/dashboard/buyer" });
+    }, 900);
   }
 
   async function handleRegister(e: React.FormEvent) {
@@ -154,22 +205,48 @@ function LoginPage() {
                       </button>
                     </div>
                   </div>
-                  <Button type="submit" disabled={loading} className="w-full bg-gold-gradient text-white shadow-gold">
-                    {loading ? "Signing in…" : "Sign In"}
+
+                  {/* Role detected feedback */}
+                  {signingInAs && (
+                    <div className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium ${ROLES.find(r => r.value === signingInAs)?.bg ?? ""} ${ROLES.find(r => r.value === signingInAs)?.color ?? ""}`}>
+                      {(() => { const R = ROLES.find(r => r.value === signingInAs); return R ? <R.icon className="h-4 w-4 shrink-0" /> : null; })()}
+                      Signing you in as a <span className="font-bold capitalize">{signingInAs}</span> — redirecting to your dashboard…
+                    </div>
+                  )}
+
+                  <Button type="submit" disabled={loading || !!signingInAs} className="w-full bg-gold-gradient text-white shadow-gold">
+                    {loading ? "Signing in…" : signingInAs ? "Redirecting…" : "Sign In"}
                   </Button>
+
+                  {/* Role reminder */}
+                  <p className="text-center text-xs text-muted-foreground">
+                    Your account type (Buyer / Seller / Agent) was set when you registered.{" "}
+                    <button type="button" onClick={() => { setTab("register"); setError(null); }} className="text-primary hover:underline">Create a new account</button>
+                  </p>
                 </form>
               ) : (
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div>
-                    <Label className="mb-2 block">I am a…</Label>
+                    <Label className="mb-3 block font-semibold text-foreground">I am a…</Label>
                     <div className="grid grid-cols-3 gap-2">
-                      {ROLES.map((r) => (
-                        <button key={r.value} type="button" onClick={() => setRegRole(r.value)}
-                          className={`rounded-lg border p-2.5 text-center text-xs font-medium transition-all ${regRole === r.value ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
-                          <div className="font-semibold">{r.label}</div>
-                          <div className="mt-0.5 text-[10px] opacity-70">{r.desc}</div>
-                        </button>
-                      ))}
+                      {ROLES.map((r) => {
+                        const Icon = r.icon;
+                        const active = regRole === r.value;
+                        return (
+                          <button key={r.value} type="button" onClick={() => setRegRole(r.value)}
+                            className={`relative rounded-xl border-2 p-3 text-center transition-all ${active ? `${r.bg} ${r.color} border-current shadow-sm` : "border-border text-muted-foreground hover:border-muted-foreground/40"}`}>
+                            {active && <div className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-primary flex items-center justify-center"><svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg></div>}
+                            <Icon className={`mx-auto mb-1.5 h-6 w-6 ${active ? r.color : "text-muted-foreground"}`} />
+                            <div className="text-xs font-bold">{r.label}</div>
+                            <div className="mt-0.5 text-[10px] leading-tight opacity-70">{r.desc}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {/* Role perks hint */}
+                    <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${ROLES.find(r => r.value === regRole)?.bg ?? ""} ${ROLES.find(r => r.value === regRole)?.color ?? ""}`}>
+                      <span className="font-semibold capitalize">{regRole} dashboard includes: </span>
+                      {ROLES.find(r => r.value === regRole)?.perks.join(" · ")}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
