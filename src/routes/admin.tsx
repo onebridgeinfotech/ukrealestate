@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, Users, List, MessageSquare, Tag, MapPin, FileText,
   CreditCard, BarChart2, Search, Check, X, Star, Menu, ChevronRight,
-  LogOut, Plus, Trash2,
+  LogOut, Plus, Trash2, Flame, UserCheck, Phone, Mail, Calendar,
+  Building2, Home, Briefcase, TrendingUp, Download, StickyNote,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/site/StatusBadge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { listings, formatPrice, type ListingStatus } from "@/lib/mock-data";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -32,6 +35,7 @@ export const Route = createFileRoute("/admin")({
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "leads", label: "Leads CRM", icon: UserCheck },
   { id: "users", label: "Users", icon: Users },
   { id: "listings", label: "Listings", icon: List },
   { id: "enquiries", label: "Enquiries", icon: MessageSquare },
@@ -852,9 +856,456 @@ function LocationsTab() {
   );
 }
 
+// ─── LEADS CRM ────────────────────────────────────────────────────────────────
+
+type LeadType = "buyer" | "seller" | "agent";
+type LeadStatus = "new" | "contacted" | "qualified" | "converted" | "lost";
+type LeadPriority = "hot" | "warm" | "cold";
+
+type Lead = {
+  id: number;
+  type: LeadType;
+  name: string;
+  email: string;
+  phone: string;
+  source: string;
+  status: LeadStatus;
+  priority: LeadPriority;
+  date: string;
+  followUp: string;
+  notes: string;
+  // buyer
+  property?: string;
+  budget?: string;
+  viewingRequested?: boolean;
+  firstTimeBuyer?: boolean;
+  // seller
+  propertyAddress?: string;
+  estimatedValue?: string;
+  timelineToSell?: string;
+  // agent
+  agency?: string;
+  ricsNumber?: string;
+  areasServed?: string;
+  specialisations?: string;
+};
+
+const MOCK_LEADS: Lead[] = [
+  // Buyer Leads
+  { id: 1, type: "buyer", name: "Sarah Thompson", email: "sarah@example.com", phone: "07700 900142", source: "Enquiry Form", status: "new", priority: "hot", date: "27 Jun 2026", followUp: "28 Jun 2026", notes: "Very interested in Kensington property. Called once, left voicemail.", property: "Kensington 4-Bed Detached", budget: "£2.5M–£3.0M", viewingRequested: true, firstTimeBuyer: false },
+  { id: 2, type: "buyer", name: "James Patel", email: "jpatel@email.com", phone: "07700 900209", source: "Viewing Request", status: "contacted", priority: "hot", date: "26 Jun 2026", followUp: "29 Jun 2026", notes: "Wants to view Canary Wharf flat. Cash buyer, no chain.", property: "2-Bed Flat, Canary Wharf", budget: "£600k–£800k", viewingRequested: true, firstTimeBuyer: false },
+  { id: 3, type: "buyer", name: "Emily Clarke", email: "e.clarke@gmail.com", phone: "07700 900301", source: "Registration", status: "qualified", priority: "warm", date: "24 Jun 2026", followUp: "01 Jul 2026", notes: "First-time buyer, needs mortgage advice. Budget is firm.", property: "New Build 3-Bed, Milton Keynes", budget: "£350k–£425k", viewingRequested: false, firstTimeBuyer: true },
+  { id: 4, type: "buyer", name: "David Chen", email: "d.chen@corp.com", phone: "07700 900201", source: "Saved Property", status: "new", priority: "warm", date: "25 Jun 2026", followUp: "30 Jun 2026", notes: "Saved 4 properties. High intent signal from behaviour.", property: "Multiple listings", budget: "£1.2M–£1.8M", viewingRequested: false, firstTimeBuyer: false },
+  { id: 5, type: "buyer", name: "Anna Kowalski", email: "a.kowalski@email.com", phone: "07700 900206", source: "Enquiry Form", status: "converted", priority: "hot", date: "18 Jun 2026", followUp: "", notes: "Converted — offer accepted on Studio, Shoreditch. £385k.", property: "Studio Apartment, Shoreditch", budget: "£350k–£400k", viewingRequested: true, firstTimeBuyer: false },
+  { id: 6, type: "buyer", name: "Marcus Bailey", email: "m.bailey@email.com", phone: "07700 900207", source: "Enquiry Form", status: "lost", priority: "cold", date: "10 Jun 2026", followUp: "", notes: "Went with another agent. Price range changed.", property: "Office Space, Liverpool St", budget: "£2M+", viewingRequested: false, firstTimeBuyer: false },
+
+  // Seller Leads
+  { id: 7, type: "seller", name: "John Matthews", email: "j.matthews@email.com", phone: "07700 900401", source: "Valuation Request", status: "contacted", priority: "hot", date: "25 Jun 2026", followUp: "28 Jun 2026", notes: "Inherited property. Wants quick sale. Motivated seller.", propertyAddress: "14 Park Road, Chelsea, SW3 4RY", estimatedValue: "£1.8M", timelineToSell: "1–3 months" },
+  { id: 8, type: "seller", name: "Fiona MacLeod", email: "fiona.ml@email.com", phone: "07700 900204", source: "Registration", status: "new", priority: "warm", date: "26 Jun 2026", followUp: "29 Jun 2026", notes: "Upsizing. Current property valued at £950k.", propertyAddress: "8 Victoria Gardens, Notting Hill, W11", estimatedValue: "£950k", timelineToSell: "3–6 months" },
+  { id: 9, type: "seller", name: "Rajan Kapoor", email: "rkapoor@email.com", phone: "07700 900205", source: "Post Listing Wizard", status: "qualified", priority: "warm", date: "22 Jun 2026", followUp: "30 Jun 2026", notes: "Listed HMO portfolio. Looking for portfolio buyer.", propertyAddress: "Multiple — Birmingham HMO portfolio", estimatedValue: "£2.1M total", timelineToSell: "6–12 months" },
+  { id: 10, type: "seller", name: "Priya Sharma", email: "priya.s@email.com", phone: "07700 900202", source: "Enquiry Form", status: "converted", priority: "hot", date: "05 Jun 2026", followUp: "", notes: "Sold Canary Wharf flat. Listed and sold in 3 weeks.", propertyAddress: "2-Bed Flat, Canary Wharf, E14", estimatedValue: "£720k", timelineToSell: "ASAP" },
+
+  // Agent Leads / Applications
+  { id: 11, type: "agent", name: "Victoria Cross", email: "v.cross@crossestates.co.uk", phone: "07700 900501", source: "Agent Registration", status: "qualified", priority: "hot", date: "26 Jun 2026", followUp: "28 Jun 2026", notes: "RICS accredited. 8 years exp. Keen to upgrade to Premium plan.", agency: "Cross Estates Ltd", ricsNumber: "RICS789012", areasServed: "London, South East", specialisations: "Residential, Lettings" },
+  { id: 12, type: "agent", name: "Tom Harrison", email: "t.harrison@harrisonprop.co.uk", phone: "07700 900502", source: "Agent Registration", status: "new", priority: "warm", date: "25 Jun 2026", followUp: "29 Jun 2026", notes: "Independent agent in Manchester. Interested in Standard plan.", agency: "Harrison Property", ricsNumber: "RICS445566", areasServed: "North West, Yorkshire", specialisations: "Residential, New Build" },
+  { id: 13, type: "agent", name: "Sandra Wu", email: "s.wu@luxprime.co.uk", phone: "07700 900503", source: "Partner Referral", status: "contacted", priority: "hot", date: "24 Jun 2026", followUp: "27 Jun 2026", notes: "Luxury market specialist. Interested in co-branded agent profile.", agency: "LuxPrime Estates", ricsNumber: "RICS112233", areasServed: "London — Mayfair, Kensington, Chelsea", specialisations: "Residential, Commercial, Investment" },
+];
+
+const LEAD_STATUS_LABELS: Record<LeadStatus, { label: string; color: string }> = {
+  new:       { label: "New",       color: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
+  contacted: { label: "Contacted", color: "bg-amber-500/20 text-amber-300 border-amber-500/30" },
+  qualified: { label: "Qualified", color: "bg-purple-500/20 text-purple-300 border-purple-500/30" },
+  converted: { label: "Converted", color: "bg-green-500/20 text-green-300 border-green-500/30" },
+  lost:      { label: "Lost",      color: "bg-red-500/20 text-red-400 border-red-500/30" },
+};
+
+const LEAD_PRIORITY: Record<LeadPriority, { label: string; color: string }> = {
+  hot:  { label: "🔥 Hot",  color: "text-red-400" },
+  warm: { label: "🟡 Warm", color: "text-amber-400" },
+  cold: { label: "❄️ Cold", color: "text-blue-400" },
+};
+
+const LEAD_TYPE_ICON: Record<LeadType, React.ElementType> = {
+  buyer:  Home,
+  seller: Building2,
+  agent:  Briefcase,
+};
+
+const LEAD_TYPE_COLOR: Record<LeadType, string> = {
+  buyer:  "bg-sky-500/20 text-sky-300",
+  seller: "bg-violet-500/20 text-violet-300",
+  agent:  "bg-gold/20 text-yellow-300",
+};
+
+function exportLeadsCSV(leads: Lead[]) {
+  const headers = ["ID","Type","Name","Email","Phone","Source","Status","Priority","Date","Follow-up","Property/Address","Budget/Value","Notes"];
+  const rows = leads.map(l => [
+    l.id, l.type, l.name, l.email, l.phone, l.source, l.status, l.priority, l.date, l.followUp,
+    l.property || l.propertyAddress || l.agency || "",
+    l.budget || l.estimatedValue || "",
+    l.notes.replace(/,/g, ";"),
+  ]);
+  const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = "leads_export.csv"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function LeadDetailModal({ lead, onClose, onUpdate }: { lead: Lead; onClose: () => void; onUpdate: (id: number, patch: Partial<Lead>) => void }) {
+  const [notes, setNotes] = useState(lead.notes);
+  const [status, setStatus] = useState<LeadStatus>(lead.status);
+  const [followUp, setFollowUp] = useState(lead.followUp);
+  const TypeIcon = LEAD_TYPE_ICON[lead.type];
+
+  function save() {
+    onUpdate(lead.id, { notes, status, followUp });
+    toast.success("Lead updated successfully!");
+    onClose();
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl bg-[#0F1C28] border-[#2a3d52] text-white p-0 overflow-hidden">
+        {/* Header */}
+        <div className="bg-[#1C2B3A] px-6 py-4 border-b border-[#2a3d52]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#C8922A]/20 flex items-center justify-center">
+              <TypeIcon className="w-5 h-5 text-[#C8922A]" />
+            </div>
+            <div>
+              <h2 className="font-bold text-white text-lg">{lead.name}</h2>
+              <p className="text-white/50 text-sm capitalize">{lead.type} Lead · {lead.source} · {lead.date}</p>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <span className={`text-sm font-semibold ${LEAD_PRIORITY[lead.priority].color}`}>{LEAD_PRIORITY[lead.priority].label}</span>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${LEAD_STATUS_LABELS[status].color}`}>{LEAD_STATUS_LABELS[status].label}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+          {/* Contact Info */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-lg bg-[#1C2B3A] border border-[#2a3d52] p-3">
+              <div className="flex items-center gap-2 text-white/40 text-xs mb-1"><Mail className="w-3 h-3" /> Email</div>
+              <p className="text-sm text-white font-medium break-all">{lead.email}</p>
+            </div>
+            <div className="rounded-lg bg-[#1C2B3A] border border-[#2a3d52] p-3">
+              <div className="flex items-center gap-2 text-white/40 text-xs mb-1"><Phone className="w-3 h-3" /> Phone</div>
+              <p className="text-sm text-white font-medium">{lead.phone}</p>
+            </div>
+            <div className="rounded-lg bg-[#1C2B3A] border border-[#2a3d52] p-3">
+              <div className="flex items-center gap-2 text-white/40 text-xs mb-1"><TrendingUp className="w-3 h-3" /> Source</div>
+              <p className="text-sm text-white font-medium">{lead.source}</p>
+            </div>
+          </div>
+
+          {/* Type-specific details */}
+          {lead.type === "buyer" && (
+            <div className="rounded-lg bg-[#1C2B3A] border border-[#2a3d52] p-4 space-y-2">
+              <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wide mb-3">Buyer Details</h4>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-white/40">Property Interest:</span><br /><span className="text-white">{lead.property}</span></div>
+                <div><span className="text-white/40">Budget:</span><br /><span className="text-white font-semibold text-[#C8922A]">{lead.budget}</span></div>
+                <div><span className="text-white/40">Viewing Requested:</span><br /><span className={lead.viewingRequested ? "text-green-400 font-semibold" : "text-white/50"}>{lead.viewingRequested ? "✓ Yes" : "No"}</span></div>
+                <div><span className="text-white/40">First-Time Buyer:</span><br /><span className={lead.firstTimeBuyer ? "text-sky-400 font-semibold" : "text-white/50"}>{lead.firstTimeBuyer ? "✓ Yes" : "No"}</span></div>
+              </div>
+            </div>
+          )}
+
+          {lead.type === "seller" && (
+            <div className="rounded-lg bg-[#1C2B3A] border border-[#2a3d52] p-4 space-y-2">
+              <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wide mb-3">Seller Details</h4>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="col-span-2"><span className="text-white/40">Property Address:</span><br /><span className="text-white">{lead.propertyAddress}</span></div>
+                <div><span className="text-white/40">Estimated Value:</span><br /><span className="text-white font-semibold text-[#C8922A]">{lead.estimatedValue}</span></div>
+                <div><span className="text-white/40">Timeline to Sell:</span><br /><span className="text-white">{lead.timelineToSell}</span></div>
+              </div>
+            </div>
+          )}
+
+          {lead.type === "agent" && (
+            <div className="rounded-lg bg-[#1C2B3A] border border-[#2a3d52] p-4 space-y-2">
+              <h4 className="text-xs font-semibold text-white/40 uppercase tracking-wide mb-3">Agent Details</h4>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-white/40">Agency:</span><br /><span className="text-white">{lead.agency}</span></div>
+                <div><span className="text-white/40">RICS Number:</span><br /><span className="text-white font-mono">{lead.ricsNumber}</span></div>
+                <div><span className="text-white/40">Areas Served:</span><br /><span className="text-white">{lead.areasServed}</span></div>
+                <div><span className="text-white/40">Specialisations:</span><br /><span className="text-white">{lead.specialisations}</span></div>
+              </div>
+            </div>
+          )}
+
+          {/* Status + Follow-up */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-white/40 uppercase tracking-wide block mb-2">Update Status</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as LeadStatus)}
+                className="w-full rounded-lg border border-[#2a3d52] bg-[#1C2B3A] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#C8922A]"
+              >
+                {(Object.keys(LEAD_STATUS_LABELS) as LeadStatus[]).map((s) => (
+                  <option key={s} value={s}>{LEAD_STATUS_LABELS[s].label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-white/40 uppercase tracking-wide block mb-2"><Calendar className="w-3 h-3 inline mr-1" />Follow-up Date</label>
+              <input
+                type="date"
+                value={followUp}
+                onChange={(e) => setFollowUp(e.target.value)}
+                className="w-full rounded-lg border border-[#2a3d52] bg-[#1C2B3A] px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#C8922A]"
+              />
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="text-xs text-white/40 uppercase tracking-wide flex items-center gap-1 mb-2"><StickyNote className="w-3 h-3" /> Notes / Activity Log</label>
+            <textarea
+              className="w-full rounded-lg border border-[#2a3d52] bg-[#1C2B3A] px-3 py-2 text-sm text-white min-h-[100px] resize-none focus:outline-none focus:ring-1 focus:ring-[#C8922A] placeholder:text-white/20"
+              placeholder="Add notes about this lead, calls made, emails sent, key info…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-3 pt-2">
+            <button onClick={save} className="flex-1 bg-[#C8922A] hover:bg-[#a07020] text-white font-semibold py-2.5 rounded-lg text-sm transition-colors">Save Changes</button>
+            <a href={`mailto:${lead.email}`} className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#2a3d52] text-sm text-white hover:bg-[#1C2B3A] transition-colors">
+              <Mail className="w-4 h-4" /> Email
+            </a>
+            <a href={`tel:${lead.phone}`} className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-[#2a3d52] text-sm text-white hover:bg-[#1C2B3A] transition-colors">
+              <Phone className="w-4 h-4" /> Call
+            </a>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function LeadsTab() {
+  const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
+  const [typeFilter, setTypeFilter] = useState<"all" | LeadType>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | LeadStatus>("all");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | LeadPriority>("all");
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Lead | null>(null);
+
+  function updateLead(id: number, patch: Partial<Lead>) {
+    setLeads((prev) => prev.map((l) => l.id === id ? { ...l, ...patch } : l));
+  }
+
+  const filtered = leads.filter((l) => {
+    if (typeFilter !== "all" && l.type !== typeFilter) return false;
+    if (statusFilter !== "all" && l.status !== statusFilter) return false;
+    if (priorityFilter !== "all" && l.priority !== priorityFilter) return false;
+    if (search && !l.name.toLowerCase().includes(search.toLowerCase()) && !l.email.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const stats = {
+    total: leads.length,
+    hot: leads.filter((l) => l.priority === "hot").length,
+    new: leads.filter((l) => l.status === "new").length,
+    converted: leads.filter((l) => l.status === "converted").length,
+    buyers: leads.filter((l) => l.type === "buyer").length,
+    sellers: leads.filter((l) => l.type === "seller").length,
+    agents: leads.filter((l) => l.type === "agent").length,
+    convRate: Math.round((leads.filter((l) => l.status === "converted").length / leads.length) * 100),
+  };
+
+  const TYPE_FILTERS: { id: "all" | LeadType; label: string; count: number }[] = [
+    { id: "all", label: "All Leads", count: leads.length },
+    { id: "buyer", label: "🏠 Buyers", count: stats.buyers },
+    { id: "seller", label: "🏢 Sellers", count: stats.sellers },
+    { id: "agent", label: "💼 Agents", count: stats.agents },
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Total Leads", value: stats.total, icon: UserCheck, color: "text-white" },
+          { label: "🔥 Hot Leads", value: stats.hot, icon: Flame, color: "text-red-400" },
+          { label: "New (Uncontacted)", value: stats.new, icon: TrendingUp, color: "text-sky-400" },
+          { label: "Conversion Rate", value: `${stats.convRate}%`, icon: Check, color: "text-green-400" },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <div key={label} className="rounded-xl bg-[#1C2B3A] border border-[#2a3d52] p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-white/40 font-medium">{label}</span>
+              <Icon className={`w-4 h-4 ${color}`} />
+            </div>
+            <p className={`text-2xl font-bold ${color}`}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Type filter pills */}
+        <div className="flex flex-wrap gap-1.5">
+          {TYPE_FILTERS.map(({ id, label, count }) => (
+            <button
+              key={id}
+              onClick={() => setTypeFilter(id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                typeFilter === id ? "bg-[#C8922A] border-[#C8922A] text-white" : "border-[#2a3d52] text-white/60 hover:border-[#C8922A]/60"
+              }`}
+            >
+              {label} <span className="opacity-60">({count})</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-2 ml-auto">
+          {/* Status filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+            className="rounded-lg border border-[#2a3d52] bg-[#1C2B3A] px-3 py-1.5 text-xs text-white focus:outline-none"
+          >
+            <option value="all">All Statuses</option>
+            {(Object.keys(LEAD_STATUS_LABELS) as LeadStatus[]).map((s) => (
+              <option key={s} value={s}>{LEAD_STATUS_LABELS[s].label}</option>
+            ))}
+          </select>
+
+          {/* Priority filter */}
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value as typeof priorityFilter)}
+            className="rounded-lg border border-[#2a3d52] bg-[#1C2B3A] px-3 py-1.5 text-xs text-white focus:outline-none"
+          >
+            <option value="all">All Priorities</option>
+            <option value="hot">🔥 Hot</option>
+            <option value="warm">🟡 Warm</option>
+            <option value="cold">❄️ Cold</option>
+          </select>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
+            <input
+              className="rounded-lg border border-[#2a3d52] bg-[#1C2B3A] pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-white/30 focus:outline-none w-44"
+              placeholder="Search leads…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {/* Export CSV */}
+          <button
+            onClick={() => { exportLeadsCSV(filtered); toast.success("CSV exported!"); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2a3d52] text-xs text-white/70 hover:text-white hover:border-[#C8922A]/60 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" /> Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Leads Table */}
+      <div className="rounded-xl border border-[#2a3d52] overflow-hidden">
+        <div className="bg-[#1a2a38] px-4 py-2.5 grid grid-cols-12 text-[11px] font-semibold text-white/40 uppercase tracking-wide">
+          <span className="col-span-3">Lead</span>
+          <span className="col-span-2 hidden sm:block">Type</span>
+          <span className="col-span-2 hidden md:block">Source</span>
+          <span className="col-span-2">Status</span>
+          <span className="col-span-1 hidden lg:block">Priority</span>
+          <span className="col-span-1 hidden lg:block">Follow-up</span>
+          <span className="col-span-1 text-right">Action</span>
+        </div>
+
+        {filtered.length === 0 && (
+          <div className="py-12 text-center text-white/30 text-sm">No leads match your filters.</div>
+        )}
+
+        {filtered.map((lead) => {
+          const TypeIcon = LEAD_TYPE_ICON[lead.type];
+          return (
+            <div
+              key={lead.id}
+              className="grid grid-cols-12 items-center px-4 py-3 border-t border-[#2a3d52] hover:bg-[#1C2B3A]/50 transition-colors cursor-pointer"
+              onClick={() => setSelected(lead)}
+            >
+              {/* Lead name + email */}
+              <div className="col-span-3">
+                <p className="font-semibold text-white text-sm">{lead.name}</p>
+                <p className="text-xs text-white/40 truncate">{lead.email}</p>
+              </div>
+
+              {/* Type badge */}
+              <div className="col-span-2 hidden sm:flex items-center gap-1.5">
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${LEAD_TYPE_COLOR[lead.type]}`}>
+                  <TypeIcon className="w-3 h-3" />
+                  {lead.type.charAt(0).toUpperCase() + lead.type.slice(1)}
+                </span>
+              </div>
+
+              {/* Source */}
+              <div className="col-span-2 hidden md:block">
+                <span className="text-xs text-white/50">{lead.source}</span>
+              </div>
+
+              {/* Status */}
+              <div className="col-span-2">
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${LEAD_STATUS_LABELS[lead.status].color}`}>
+                  {LEAD_STATUS_LABELS[lead.status].label}
+                </span>
+              </div>
+
+              {/* Priority */}
+              <div className="col-span-1 hidden lg:block">
+                <span className={`text-xs font-semibold ${LEAD_PRIORITY[lead.priority].color}`}>
+                  {LEAD_PRIORITY[lead.priority].label}
+                </span>
+              </div>
+
+              {/* Follow-up */}
+              <div className="col-span-1 hidden lg:block">
+                <span className="text-xs text-white/40">{lead.followUp || "—"}</span>
+              </div>
+
+              {/* Action */}
+              <div className="col-span-1 text-right">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setSelected(lead); }}
+                  className="text-[#C8922A] text-xs font-semibold hover:underline"
+                >
+                  View
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-xs text-white/30 text-right">Showing {filtered.length} of {leads.length} leads</p>
+
+      {/* Lead Detail Modal */}
+      {selected && (
+        <LeadDetailModal
+          lead={selected}
+          onClose={() => setSelected(null)}
+          onUpdate={(id, patch) => { updateLead(id, patch); setSelected((prev) => prev ? { ...prev, ...patch } : null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 function TAB_CONTENT_MAP({ activeTab }: { activeTab: string }) {
   const map: Record<string, React.ReactNode> = {
     dashboard: <DashboardTab />,
+    leads: <LeadsTab />,
     users: <UsersTab />,
     listings: <ListingsTab />,
     enquiries: <EnquiriesTab />,
