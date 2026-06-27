@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { useState } from "react";
+import { toast } from "sonner";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { supabase } from "@/lib/supabase";
 import { Home, Heart, Search, MessageSquare, Clock, User, Eye, Trash2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +14,10 @@ import { StatusBadge } from "@/components/site/StatusBadge";
 import { listings } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/dashboard/buyer")({
+  beforeLoad: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw redirect({ to: "/login" });
+  },
   component: BuyerDashboard,
 });
 
@@ -33,8 +39,8 @@ const ACTIVITY = [
 ];
 
 const SAVED_SEARCHES = [
-  { title: "3-Bed Manchester under £400k", filters: ["Residential","Manchester","3 beds","Max £400k"], matches: 4 },
-  { title: "Office Space London £500k–£2M", filters: ["Office","London","£500k–£2M"], matches: 11 },
+  { title: "3-Bed Manchester under Â£400k", filters: ["Residential","Manchester","3 beds","Max Â£400k"], matches: 4 },
+  { title: "Office Space London Â£500kâ€“Â£2M", filters: ["Office","London","Â£500kâ€“Â£2M"], matches: 11 },
   { title: "New Build Help to Buy", filters: ["New Build","Any location","Help to Buy"], matches: 7 },
 ];
 
@@ -200,6 +206,7 @@ function NotifToggle({ label, defaultOn }: { label: string; defaultOn: boolean }
 
 function ProfileSection() {
   const [form, setForm] = useState({ firstName:"Sarah", lastName:"Thompson", email:"sarah@example.com", phone:"07700 900142", bio:"First-time buyer looking for a family home in North London." });
+  const [pw, setPw] = useState({ current:"", next:"", confirm:"" });
   return (
     <div className="space-y-6">
       <h2 className="font-display text-xl font-bold text-primary">My Profile</h2>
@@ -215,7 +222,7 @@ function ProfileSection() {
         </div>
         <div><Label>Phone</Label><Input className="mt-1" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone:e.target.value })} /></div>
         <div><Label>About you</Label><Textarea className="mt-1" rows={3} value={form.bio} onChange={(e) => setForm({ ...form, bio:e.target.value })} /></div>
-        <Button className="bg-primary text-white">Save Changes</Button>
+        <Button className="bg-primary text-white" onClick={() => toast.success("Profile updated successfully!")}>Save Changes</Button>
       </div>
       <div className="rounded-xl border border-border bg-card p-5 space-y-4">
         <h3 className="font-semibold">Notification Preferences</h3>
@@ -226,10 +233,15 @@ function ProfileSection() {
       </div>
       <div className="rounded-xl border border-border bg-card p-5 space-y-3">
         <h3 className="font-semibold flex items-center gap-2"><Lock className="h-4 w-4" />Change Password</h3>
-        <Input type="password" placeholder="Current password" />
-        <Input type="password" placeholder="New password" />
-        <Input type="password" placeholder="Confirm new password" />
-        <Button variant="outline">Update Password</Button>
+        <Input type="password" placeholder="Current password" value={pw.current} onChange={(e) => setPw({ ...pw, current:e.target.value })} />
+        <Input type="password" placeholder="New password" value={pw.next} onChange={(e) => setPw({ ...pw, next:e.target.value })} />
+        <Input type="password" placeholder="Confirm new password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm:e.target.value })} />
+        <Button variant="outline" onClick={() => {
+          if (!pw.current || !pw.next) { toast.error("Please fill in all password fields."); return; }
+          if (pw.next !== pw.confirm) { toast.error("New passwords do not match."); return; }
+          if (pw.next.length < 8) { toast.error("Password must be at least 8 characters."); return; }
+          toast.success("Password updated successfully!"); setPw({ current:"", next:"", confirm:"" });
+        }}>Update Password</Button>
       </div>
     </div>
   );

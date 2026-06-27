@@ -5,6 +5,7 @@ import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
 import { BottomNav } from "@/components/site/BottomNav";
 import { AuthProvider } from "@/lib/auth";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -58,6 +59,7 @@ function RootComponent() {
           </main>
           <Footer />
           <BottomNav />
+          <Toaster position="bottom-right" richColors />
         </div>
       </AuthProvider>
     </QueryClientProvider>

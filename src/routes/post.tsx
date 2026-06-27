@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+﻿import { useState } from "react";
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { createListing } from "@/lib/listings-api";
 import { uploadToCloudinary } from "@/lib/cloudinary";
@@ -28,7 +29,11 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/post")({
-  head: () => ({ meta: [{ title: "Post a Listing — MarketUK" }] }),
+  beforeLoad: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw redirect({ to: "/login" });
+  },
+  head: () => ({ meta: [{ title: "Post a Listing â€” MarketUK" }] }),
   component: PostListing,
 });
 
@@ -76,7 +81,7 @@ interface FormData {
   garden: string;
   centralHeating: boolean;
   broadband: boolean;
-  // Step 5 — simulated
+  // Step 5 â€” simulated
   // Step 6
   selectedPackage: string;
   agreedTerms: boolean;
@@ -241,7 +246,7 @@ function PostListing() {
     if (Object.keys(e).length) { setErrors(e); return; }
     setErrors({});
 
-    // On step 6 — submit to Supabase
+    // On step 6 â€” submit to Supabase
     if (step === 6) {
       if (!user) {
         setSubmitError("You must be signed in to publish a listing.");
@@ -349,7 +354,7 @@ function PostListing() {
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
 
-          {/* ─── STEP 1 ─── */}
+          {/* â”€â”€â”€ STEP 1 â”€â”€â”€ */}
           {step === 1 && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-primary">Property Information</h2>
@@ -388,7 +393,7 @@ function PostListing() {
                 <Textarea
                   id="description"
                   className="mt-1 min-h-[140px]"
-                  placeholder="Describe the property in detail — location highlights, interior features, nearby amenities..."
+                  placeholder="Describe the property in detail â€” location highlights, interior features, nearby amenities..."
                   maxLength={2000}
                   value={form.description}
                   onChange={(e) => set("description", e.target.value)}
@@ -436,7 +441,7 @@ function PostListing() {
             </div>
           )}
 
-          {/* ─── STEP 2 ─── */}
+          {/* â”€â”€â”€ STEP 2 â”€â”€â”€ */}
           {step === 2 && (
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-primary">Location</h2>
@@ -484,7 +489,7 @@ function PostListing() {
             </div>
           )}
 
-          {/* ─── STEP 3 ─── */}
+          {/* â”€â”€â”€ STEP 3 â”€â”€â”€ */}
           {step === 3 && (
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-primary">Pricing</h2>
@@ -492,7 +497,7 @@ function PostListing() {
               <div>
                 <Label htmlFor="price">Asking Price *</Label>
                 <div className="relative mt-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">£</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">Â£</span>
                   <Input
                     id="price"
                     className="pl-7"
@@ -546,16 +551,16 @@ function PostListing() {
               {isLeasehold && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-amber-50 rounded-lg border border-amber-100">
                   <div>
-                    <Label htmlFor="serviceCharge">Service Charge (£/year)</Label>
+                    <Label htmlFor="serviceCharge">Service Charge (Â£/year)</Label>
                     <div className="relative mt-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">£</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Â£</span>
                       <Input id="serviceCharge" className="pl-7" placeholder="2,400" value={form.serviceCharge} onChange={(e) => set("serviceCharge", e.target.value)} />
                     </div>
                   </div>
                   <div>
-                    <Label htmlFor="groundRent">Ground Rent (£/year)</Label>
+                    <Label htmlFor="groundRent">Ground Rent (Â£/year)</Label>
                     <div className="relative mt-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">£</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">Â£</span>
                       <Input id="groundRent" className="pl-7" placeholder="250" value={form.groundRent} onChange={(e) => set("groundRent", e.target.value)} />
                     </div>
                   </div>
@@ -564,7 +569,7 @@ function PostListing() {
             </div>
           )}
 
-          {/* ─── STEP 4 ─── */}
+          {/* â”€â”€â”€ STEP 4 â”€â”€â”€ */}
           {step === 4 && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold text-primary">Property Details</h2>
@@ -692,18 +697,18 @@ function PostListing() {
             </div>
           )}
 
-          {/* ─── STEP 5 ─── */}
+          {/* â”€â”€â”€ STEP 5 â”€â”€â”€ */}
           {step === 5 && (
             <div className="space-y-8">
               <h2 className="text-xl font-bold text-primary">Media</h2>
 
-              {/* Photo Upload — Cloudinary */}
+              {/* Photo Upload â€” Cloudinary */}
               <div>
                 <Label className="text-base font-semibold">Property Photos</Label>
                 <label className="mt-3 border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center text-center bg-gray-50 hover:border-[#C8922A] transition-colors cursor-pointer">
                   <CloudUpload className="w-10 h-10 text-gray-400 mb-3" />
                   <p className="text-gray-600 font-medium">Click to select photos</p>
-                  <p className="text-gray-400 text-sm mb-4">PNG, JPG, WEBP — max 10MB each</p>
+                  <p className="text-gray-400 text-sm mb-4">PNG, JPG, WEBP â€” max 10MB each</p>
                   <span className="inline-flex items-center px-4 py-2 rounded-md bg-[#C8922A] text-white text-sm font-medium">
                     Browse Files
                   </span>
@@ -721,7 +726,7 @@ function PostListing() {
                       }
                       for (let i = 0; i < files.length; i++) {
                         const file = files[i];
-                        setUploadProgress(`Uploading ${i + 1} of ${files.length}…`);
+                        setUploadProgress(`Uploading ${i + 1} of ${files.length}â€¦`);
                         const tempId = Date.now() + i;
                         // Add placeholder
                         setImages((prev) => [...prev, { id: tempId, url: URL.createObjectURL(file), featured: prev.length === 0, uploading: true }]);
@@ -814,7 +819,7 @@ function PostListing() {
             </div>
           )}
 
-          {/* ─── STEP 6 ─── */}
+          {/* â”€â”€â”€ STEP 6 â”€â”€â”€ */}
           {step === 6 && (
             <div className="space-y-8">
               <h2 className="text-xl font-bold text-primary">Review &amp; Publish</h2>
@@ -824,25 +829,25 @@ function PostListing() {
                 <h3 className="font-semibold text-[#0D2B4E] mb-3">Listing Summary</h3>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                   <div className="text-gray-500">Title</div>
-                  <div className="font-medium">{form.title || "—"}</div>
+                  <div className="font-medium">{form.title || "â€”"}</div>
                   <div className="text-gray-500">Type</div>
-                  <div className="font-medium">{form.propertyType || "—"}</div>
+                  <div className="font-medium">{form.propertyType || "â€”"}</div>
                   <div className="text-gray-500">Address</div>
-                  <div className="font-medium">{[form.address1, form.city, form.postcode].filter(Boolean).join(", ") || "—"}</div>
+                  <div className="font-medium">{[form.address1, form.city, form.postcode].filter(Boolean).join(", ") || "â€”"}</div>
                   <div className="text-gray-500">Region</div>
-                  <div className="font-medium">{form.region || "—"}</div>
+                  <div className="font-medium">{form.region || "â€”"}</div>
                   <div className="text-gray-500">Asking Price</div>
-                  <div className="font-medium text-[#C8922A]">{form.askingPrice ? `£${form.askingPrice}` : "—"}</div>
+                  <div className="font-medium text-[#C8922A]">{form.askingPrice ? `Â£${form.askingPrice}` : "â€”"}</div>
                   <div className="text-gray-500">Tenure</div>
-                  <div className="font-medium">{form.tenure || "—"}</div>
+                  <div className="font-medium">{form.tenure || "â€”"}</div>
                   <div className="text-gray-500">Bedrooms</div>
-                  <div className="font-medium">{form.bedrooms || "—"}</div>
+                  <div className="font-medium">{form.bedrooms || "â€”"}</div>
                   <div className="text-gray-500">Bathrooms</div>
-                  <div className="font-medium">{form.bathrooms || "—"}</div>
+                  <div className="font-medium">{form.bathrooms || "â€”"}</div>
                   <div className="text-gray-500">EPC Rating</div>
-                  <div className="font-medium">{form.epcRating || "—"}</div>
+                  <div className="font-medium">{form.epcRating || "â€”"}</div>
                   <div className="text-gray-500">Parking</div>
-                  <div className="font-medium">{form.parking || "—"}</div>
+                  <div className="font-medium">{form.parking || "â€”"}</div>
                 </div>
               </div>
 
@@ -859,11 +864,11 @@ function PostListing() {
                     `}
                   >
                     <p className="text-gray-500 text-sm font-medium">Free</p>
-                    <p className="text-2xl font-bold text-[#0D2B4E] mt-1">£0<span className="text-sm font-normal text-gray-400">/mo</span></p>
+                    <p className="text-2xl font-bold text-[#0D2B4E] mt-1">Â£0<span className="text-sm font-normal text-gray-400">/mo</span></p>
                     <ul className="mt-3 space-y-1 text-sm text-gray-600">
-                      <li>✓ 1 listing</li>
-                      <li>✓ 3 images</li>
-                      <li>✓ Standard placement</li>
+                      <li>âœ“ 1 listing</li>
+                      <li>âœ“ 3 images</li>
+                      <li>âœ“ Standard placement</li>
                     </ul>
                     <Button
                       type="button"
@@ -886,11 +891,11 @@ function PostListing() {
                       MOST POPULAR
                     </span>
                     <p className="text-gray-500 text-sm font-medium">Standard</p>
-                    <p className="text-2xl font-bold text-[#0D2B4E] mt-1">£29<span className="text-sm font-normal text-gray-400">/mo</span></p>
+                    <p className="text-2xl font-bold text-[#0D2B4E] mt-1">Â£29<span className="text-sm font-normal text-gray-400">/mo</span></p>
                     <ul className="mt-3 space-y-1 text-sm text-gray-600">
-                      <li>✓ 10 listings</li>
-                      <li>✓ 10 images</li>
-                      <li>✓ Highlighted border</li>
+                      <li>âœ“ 10 listings</li>
+                      <li>âœ“ 10 images</li>
+                      <li>âœ“ Highlighted border</li>
                     </ul>
                     <Button
                       type="button"
@@ -909,12 +914,12 @@ function PostListing() {
                     `}
                   >
                     <p className="text-gray-500 text-sm font-medium">Premium</p>
-                    <p className="text-2xl font-bold text-[#0D2B4E] mt-1">£59<span className="text-sm font-normal text-gray-400">/mo</span></p>
+                    <p className="text-2xl font-bold text-[#0D2B4E] mt-1">Â£59<span className="text-sm font-normal text-gray-400">/mo</span></p>
                     <ul className="mt-3 space-y-1 text-sm text-gray-600">
-                      <li>✓ Unlimited listings</li>
-                      <li>✓ 20 images</li>
-                      <li>✓ Featured badge</li>
-                      <li>✓ Analytics dashboard</li>
+                      <li>âœ“ Unlimited listings</li>
+                      <li>âœ“ 20 images</li>
+                      <li>âœ“ Featured badge</li>
+                      <li>âœ“ Analytics dashboard</li>
                     </ul>
                     <Button
                       type="button"
@@ -949,7 +954,7 @@ function PostListing() {
             </div>
           )}
 
-          {/* ─── NAV BUTTONS ─── */}
+          {/* â”€â”€â”€ NAV BUTTONS â”€â”€â”€ */}
           <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
             {step > 1 ? (
               <Button type="button" variant="outline" onClick={back} className="flex items-center gap-2">
@@ -978,7 +983,7 @@ function PostListing() {
                   disabled={submitting}
                   className="w-full bg-[#C8922A] hover:bg-[#a07020] text-white text-base py-5"
                 >
-                  {submitting ? "Publishing…" : "Publish Listing"}
+                  {submitting ? "Publishingâ€¦" : "Publish Listing"}
                 </Button>
                 <button type="button" className="text-sm text-gray-400 hover:text-gray-600 underline">
                   Save as Draft

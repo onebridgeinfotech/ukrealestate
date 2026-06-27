@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { useState } from "react";
+import { toast } from "sonner";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +25,11 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard/agent")({
-  head: () => ({ meta: [{ title: "Agent Dashboard — MarketUK" }] }),
+  beforeLoad: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw redirect({ to: "/login" });
+  },
+  head: () => ({ meta: [{ title: "Agent Dashboard â€” MarketUK" }] }),
   component: AgentDashboard,
 });
 
@@ -128,6 +134,8 @@ function AgentDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [kanban, setKanban] = useState(KANBAN);
   const [listingFilter, setListingFilter] = useState("All");
+  const [managedListings, setManagedListings] = useState(MOCK_LISTINGS);
+  const [featuredIds, setFeaturedIds] = useState<number[]>([]);
   const [selectedSpecs, setSelectedSpecs] = useState<string[]>(["Residential", "Lettings"]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>(["London", "South East"]);
   const [profile, setProfile] = useState({
@@ -159,8 +167,8 @@ function AgentDashboard() {
   }
 
   const filteredListings = listingFilter === "All"
-    ? MOCK_LISTINGS
-    : MOCK_LISTINGS.filter((l) => l.status === listingFilter);
+    ? managedListings
+    : managedListings.filter((l) => l.status === listingFilter);
 
   const totalLeads = Object.values(kanban).reduce((acc, arr) => acc + arr.length, 0);
 
@@ -324,13 +332,13 @@ function AgentDashboard() {
                           <td className="px-4 py-3 text-gray-400 text-xs hidden lg:table-cell">{l.date}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-2">
-                              <button className="p-1.5 text-gray-400 hover:text-[#0D2B4E] transition-colors" title="Edit">
+                              <button onClick={() => toast("Edit listing coming soon — full editor launching shortly.")} className="p-1.5 text-gray-400 hover:text-[#0D2B4E] transition-colors" title="Edit">
                                 <Pencil className="w-4 h-4" />
                               </button>
-                              <button className="p-1.5 text-gray-400 hover:text-[#C8922A] transition-colors" title="Feature">
-                                <Star className="w-4 h-4" />
+                              <button onClick={() => { setFeaturedIds((ids) => ids.includes(l.id) ? ids.filter((x) => x !== l.id) : [...ids, l.id]); toast(featuredIds.includes(l.id) ? "Removed from featured" : "Listing featured! ⭐"); }} className="p-1.5 transition-colors" title="Feature" style={{ color: featuredIds.includes(l.id) ? "#C8922A" : "#9ca3af" }}>
+                                <Star className={`w-4 h-4 ${featuredIds.includes(l.id) ? "fill-[#C8922A]" : ""}`} />
                               </button>
-                              <button className="p-1.5 text-gray-400 hover:text-red-500 transition-colors" title="Delete">
+                              <button onClick={() => { if (confirm("Remove this listing from your managed listings?")) { setManagedListings((ml) => ml.filter((x) => x.id !== l.id)); toast("Listing removed."); } }} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors" title="Delete">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
@@ -396,6 +404,7 @@ function AgentDashboard() {
                               <Button
                                 size="sm"
                                 className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs h-7 px-2"
+                                onClick={() => { setKanban((prev) => ({ ...prev, [stage]: prev[stage].filter((l) => l.id !== lead.id) })); toast.success(`🎉 Offer accepted for ${lead.buyer}!`); }}
                               >
                                 Offer Made
                               </Button>
@@ -503,16 +512,17 @@ function AgentDashboard() {
                   onChange={(e) => setProfile((p) => ({ ...p, bio: e.target.value }))}
                   placeholder="Write a detailed professional bio for your public profile..."
                 />
-                <p className="text-xs text-gray-400">{profile.bio.length} characters — shown on your public agent profile</p>
+                <p className="text-xs text-gray-400">{profile.bio.length} characters â€” shown on your public agent profile</p>
 
                 <div className="flex flex-wrap items-center gap-3 pt-2">
-                  <Button className="bg-[#C8922A] hover:bg-[#a07020] text-white">Save Changes</Button>
-                  <a
-                    href="#"
+                  <Button className="bg-[#C8922A] hover:bg-[#a07020] text-white" onClick={() => toast.success("Profile saved successfully!")}>Save Changes</Button>
+                  <button
+                    type="button"
+                    onClick={() => toast("Public agent profiles are coming soon. Save your changes first.")}
                     className="flex items-center gap-1 text-sm text-[#0D2B4E] font-medium hover:underline"
                   >
                     <ExternalLink className="w-4 h-4" /> View Public Profile
-                  </a>
+                  </button>
                 </div>
               </div>
             </div>

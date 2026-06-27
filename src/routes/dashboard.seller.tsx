@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { useState } from "react";
+import { toast } from "sonner";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { supabase } from "@/lib/supabase";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +42,11 @@ import {
 } from "recharts";
 
 export const Route = createFileRoute("/dashboard/seller")({
-  head: () => ({ meta: [{ title: "Seller Dashboard — MarketUK" }] }),
+  beforeLoad: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw redirect({ to: "/login" });
+  },
+  head: () => ({ meta: [{ title: "Seller Dashboard â€” MarketUK" }] }),
   component: SellerDashboard,
 });
 
@@ -80,9 +86,9 @@ const ENQUIRIES = [
 ];
 
 const BILLING = [
-  { date: "01 Jun 2025", plan: "Free Plan", amount: "£0.00", status: "Active" },
-  { date: "01 May 2025", plan: "Free Plan", amount: "£0.00", status: "Paid" },
-  { date: "01 Apr 2025", plan: "Free Plan", amount: "£0.00", status: "Paid" },
+  { date: "01 Jun 2025", plan: "Free Plan", amount: "Â£0.00", status: "Active" },
+  { date: "01 May 2025", plan: "Free Plan", amount: "Â£0.00", status: "Paid" },
+  { date: "01 Apr 2025", plan: "Free Plan", amount: "Â£0.00", status: "Paid" },
 ];
 
 function StatusBadge({ status }: { status: string }) {
@@ -167,11 +173,44 @@ function EditListingModal({ listing, onSave, onClose }: { listing: ListingItem; 
   );
 }
 
+type EnquiryItem = typeof ENQUIRIES[0];
+
+function ReplyModal({ enq, onClose }: { enq: EnquiryItem; onClose: () => void }) {
+  const [reply, setReply] = useState("");
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Reply to {enq.buyer}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground mb-1">{enq.property}</p>
+            <p>{enq.excerpt}</p>
+          </div>
+          <textarea
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none min-h-[120px] focus:outline-none focus:ring-2 focus:ring-ring"
+            placeholder="Write your reply..."
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+          />
+        </div>
+        <DialogFooter className="gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-md border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
+          <button onClick={() => { if (!reply.trim()) { toast.error("Please write a reply first."); return; } toast.success("Reply sent to " + enq.buyer + "!"); onClose(); }} className="px-4 py-2 rounded-md bg-[#0D2B4E] text-white text-sm font-medium hover:bg-[#0a2040]">Send Reply</button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SellerDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [listingFilter, setListingFilter] = useState("All");
   const [listings, setListings] = useState(MOCK_LISTINGS);
   const [editingListing, setEditingListing] = useState<ListingItem | null>(null);
+  const [replyingTo, setReplyingTo] = useState<EnquiryItem | null>(null);
+  const [featuredIds, setFeaturedIds] = useState<number[]>([]);
 
   function handleSave(updated: ListingItem) {
     setListings((prev) => prev.map((l) => l.id === updated.id ? updated : l));
@@ -347,8 +386,8 @@ function SellerDashboard() {
                               <button onClick={() => setEditingListing(l)} className="p-1.5 text-gray-400 hover:text-[#0D2B4E] transition-colors" title="Edit">
                                 <Pencil className="w-4 h-4" />
                               </button>
-                              <button className="p-1.5 text-gray-400 hover:text-[#C8922A] transition-colors" title="Feature">
-                                <Star className="w-4 h-4" />
+                              <button onClick={() => { setFeaturedIds((ids) => ids.includes(l.id) ? ids.filter((x) => x !== l.id) : [...ids, l.id]); toast(featuredIds.includes(l.id) ? "Removed from featured" : "Listing featured! ⭐"); }} className="p-1.5 transition-colors" title="Feature" style={{ color: featuredIds.includes(l.id) ? "#C8922A" : "#9ca3af" }}>
+                                <Star className={`w-4 h-4 ${featuredIds.includes(l.id) ? "fill-[#C8922A]" : ""}`} />
                               </button>
                               <button onClick={() => handleDelete(l.id)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors" title="Delete">
                                 <Trash2 className="w-4 h-4" />
@@ -382,7 +421,7 @@ function SellerDashboard() {
                       <p className="text-sm text-gray-600 line-clamp-2">{enq.excerpt}</p>
                       <p className="text-xs text-gray-400 mt-2">{enq.date}</p>
                     </div>
-                    <Button size="sm" className="bg-[#0D2B4E] hover:bg-[#0a2040] text-white whitespace-nowrap shrink-0">
+                    <Button size="sm" className="bg-[#0D2B4E] hover:bg-[#0a2040] text-white whitespace-nowrap shrink-0" onClick={() => setReplyingTo(enq)}>
                       View &amp; Reply
                     </Button>
                   </div>
@@ -395,7 +434,7 @@ function SellerDashboard() {
           {activeTab === "performance" && (
             <div className="space-y-6">
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-                <h3 className="font-semibold text-[#0D2B4E] mb-5">Property Views — Last 30 Days</h3>
+                <h3 className="font-semibold text-[#0D2B4E] mb-5">Property Views â€” Last 30 Days</h3>
                 <ResponsiveContainer width="100%" height={240}>
                   <AreaChart data={VIEW_DATA} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                     <defs>
@@ -435,15 +474,15 @@ function SellerDashboard() {
                 <div>
                   <p className="text-white/70 text-sm">Current Plan</p>
                   <h2 className="text-2xl font-bold mt-1">Free Plan</h2>
-                  <p className="text-white/60 text-sm mt-1">1 listing · 3 images · Standard placement</p>
+                  <p className="text-white/60 text-sm mt-1">1 listing Â· 3 images Â· Standard placement</p>
                 </div>
-                <Button className="bg-[#C8922A] hover:bg-[#a07020] text-white shrink-0">Upgrade Now</Button>
+                <Button className="bg-[#C8922A] hover:bg-[#a07020] text-white shrink-0" onClick={() => setActiveTab("package")}>Upgrade Now</Button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-white rounded-xl border-2 border-gray-100 p-5">
                   <p className="text-sm text-gray-500 font-medium">Free</p>
-                  <p className="text-2xl font-bold text-[#0D2B4E] mt-1">£0<span className="text-sm font-normal text-gray-400">/mo</span></p>
+                  <p className="text-2xl font-bold text-[#0D2B4E] mt-1">Â£0<span className="text-sm font-normal text-gray-400">/mo</span></p>
                   <ul className="mt-3 space-y-1 text-sm text-gray-600">
                     {["1 listing", "3 images", "Standard placement"].map((f) => (
                       <li key={f} className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-gray-300" />{f}</li>
@@ -454,23 +493,23 @@ function SellerDashboard() {
                 <div className="bg-white rounded-xl border-2 border-[#C8922A]/40 p-5 relative">
                   <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#C8922A] text-white text-[10px] font-bold px-3 py-0.5 rounded-full">MOST POPULAR</span>
                   <p className="text-sm text-gray-500 font-medium">Standard</p>
-                  <p className="text-2xl font-bold text-[#0D2B4E] mt-1">£29<span className="text-sm font-normal text-gray-400">/mo</span></p>
+                  <p className="text-2xl font-bold text-[#0D2B4E] mt-1">Â£29<span className="text-sm font-normal text-gray-400">/mo</span></p>
                   <ul className="mt-3 space-y-1 text-sm text-gray-600">
                     {["10 listings", "10 images", "Highlighted border", "Email support"].map((f) => (
                       <li key={f} className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" />{f}</li>
                     ))}
                   </ul>
-                  <Button className="w-full mt-4 bg-[#C8922A] hover:bg-[#a07020] text-white">Upgrade to Standard</Button>
+                  <Button className="w-full mt-4 bg-[#C8922A] hover:bg-[#a07020] text-white" onClick={() => toast.success("Upgrading to Standard Plan… Redirecting to checkout.")}>Upgrade to Standard</Button>
                 </div>
                 <div className="bg-white rounded-xl border-2 border-gray-100 p-5">
                   <p className="text-sm text-gray-500 font-medium">Premium</p>
-                  <p className="text-2xl font-bold text-[#0D2B4E] mt-1">£59<span className="text-sm font-normal text-gray-400">/mo</span></p>
+                  <p className="text-2xl font-bold text-[#0D2B4E] mt-1">Â£59<span className="text-sm font-normal text-gray-400">/mo</span></p>
                   <ul className="mt-3 space-y-1 text-sm text-gray-600">
                     {["Unlimited listings", "20 images", "Featured badge", "Analytics dashboard", "Priority support"].map((f) => (
                       <li key={f} className="flex items-center gap-2"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" />{f}</li>
                     ))}
                   </ul>
-                  <Button className="w-full mt-4 bg-[#0D2B4E] hover:bg-[#0a2040] text-white">Upgrade to Premium</Button>
+                  <Button className="w-full mt-4 bg-[#0D2B4E] hover:bg-[#0a2040] text-white" onClick={() => toast.success("Upgrading to Premium Plan… Redirecting to checkout.")}>Upgrade to Premium</Button>
                 </div>
               </div>
 
@@ -539,12 +578,15 @@ function SellerDashboard() {
                   <Label>About / Bio</Label>
                   <Textarea className="mt-1 min-h-[100px]" value={profile.bio} onChange={(e) => setProfile((p) => ({ ...p, bio: e.target.value }))} />
                 </div>
-                <Button className="bg-[#C8922A] hover:bg-[#a07020] text-white">Save Changes</Button>
+                <Button className="bg-[#C8922A] hover:bg-[#a07020] text-white" onClick={() => toast.success("Profile saved successfully!")}>Save Changes</Button>
               </div>
             </div>
           )}
         </div>
       </main>
+
+      {/* Reply Modal */}
+      {replyingTo && <ReplyModal enq={replyingTo} onClose={() => setReplyingTo(null)} />}
 
       {/* Edit Modal */}
       {editingListing && (

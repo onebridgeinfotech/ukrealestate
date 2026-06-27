@@ -1,8 +1,9 @@
-import { useState } from "react";
+﻿import { useState, useRef } from "react";
+import { toast } from "sonner";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   MapPin, Calendar, Eye, Heart, Share2, Phone, Mail, Download,
-  Train, School, ChevronLeft, ChevronRight, CheckCircle, FileText
+  Train, School, ChevronLeft, ChevronRight, CheckCircle, FileText, Copy, Link2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { StatusBadge } from "@/components/site/StatusBadge";
 import { ListingCard } from "@/components/site/ListingCard";
 import { listings, formatPrice } from "@/lib/mock-data";
@@ -87,7 +89,7 @@ function MortgageCalc({ price }: { price: number }) {
         <Separator />
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Est. Monthly Payment</span>
-          <span className="font-display text-xl font-extrabold text-primary">£{monthly.toLocaleString()}</span>
+          <span className="font-display text-xl font-extrabold text-primary">Â£{monthly.toLocaleString()}</span>
         </div>
         <p className="text-[11px] text-muted-foreground">Based on 4.5% APR, 25-year term. Indicative only.</p>
       </div>
@@ -103,7 +105,31 @@ function ListingDetailPage() {
   const relatedItems = related.length >= 2 ? related : fallbackRelated;
 
   const [thumbIdx, setThumbIdx] = useState(0);
+  const [saved, setSaved] = useState(false);
   const [enquiry, setEnquiry] = useState({ name: "", email: "", phone: "", message: `I am interested in ${listing.title}. Please contact me to discuss further.`, viewing: false });
+  const enquiryRef = useRef<HTMLDivElement>(null);
+
+  function scrollToEnquiry(withViewing = false) {
+    if (withViewing) setEnquiry((e) => ({ ...e, viewing: true }));
+    enquiryRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
+  }
+
+  function shareVia(platform: string) {
+    const url = window.location.href;
+    const text = encodeURIComponent(listing.title);
+    const encodedUrl = encodeURIComponent(url);
+    const links: Record<string, string> = {
+      whatsapp: `https://wa.me/?text=${text}%20${encodedUrl}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+      twitter: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${text}`,
+      email: `mailto:?subject=${text}&body=Check%20out%20this%20property%3A%20${encodedUrl}`,
+    };
+    if (platform === "copy") {
+      navigator.clipboard.writeText(url).then(() => toast("Link copied to clipboard!", { icon: "🔗" }));
+    } else {
+      window.open(links[platform], "_blank", "noopener,noreferrer");
+    }
+  }
 
   const images = [listing.image, listing.image, listing.image, listing.image];
 
@@ -182,18 +208,40 @@ function ListingDetailPage() {
                   {listing.tenure && <Badge variant="outline" className="mt-2">{listing.tenure}</Badge>}
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <Button className="bg-gold text-white hover:bg-gold/90">
+                  <Button className="bg-gold text-white hover:bg-gold/90" onClick={() => scrollToEnquiry()}>
                     <Mail className="mr-2 h-4 w-4" /> Send Enquiry
                   </Button>
-                  <Button variant="outline">
-                    <Heart className="mr-2 h-4 w-4" /> Save
+                  <Button variant="outline" onClick={() => { setSaved((v) => !v); toast(saved ? "Removed from saved properties" : "Saved to your properties", { icon: saved ? "🤍" : "❤️" }); }}>
+                    <Heart className={`mr-2 h-4 w-4 transition-colors ${saved ? "fill-red-500 text-red-500" : ""}`} /> {saved ? "Saved" : "Save"}
                   </Button>
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={() => scrollToEnquiry(true)}>
                     <Calendar className="mr-2 h-4 w-4" /> Book Viewing
                   </Button>
-                  <Button variant="outline" size="icon">
-                    <Share2 className="h-4 w-4" />
-                  </Button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon" title="Share this property">
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-52 p-1.5" align="end">
+                      <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Share via</p>
+                      <button onClick={() => shareVia("copy")} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted text-left">
+                        <Copy className="h-4 w-4 text-muted-foreground shrink-0" /> Copy link
+                      </button>
+                      <button onClick={() => shareVia("whatsapp")} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted text-left">
+                        <span className="h-4 w-4 shrink-0 text-center text-base leading-4">💬</span> WhatsApp
+                      </button>
+                      <button onClick={() => shareVia("facebook")} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted text-left">
+                        <span className="h-4 w-4 shrink-0 inline-flex items-center justify-center rounded text-[10px] font-bold bg-blue-600 text-white">f</span> Facebook
+                      </button>
+                      <button onClick={() => shareVia("twitter")} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted text-left">
+                        <span className="h-4 w-4 shrink-0 inline-flex items-center justify-center rounded text-[10px] font-bold bg-black text-white">𝕏</span> X / Twitter
+                      </button>
+                      <button onClick={() => shareVia("email")} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted text-left">
+                        <Mail className="h-4 w-4 text-muted-foreground shrink-0" /> Email
+                      </button>
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </div>
@@ -206,7 +254,7 @@ function ListingDetailPage() {
                   <div key={f.label} className="rounded-lg bg-muted/50 p-3">
                     <div className="text-xs text-muted-foreground">{f.label}</div>
                     <div className="mt-0.5 text-sm font-semibold">
-                      {f.value ?? (f.key ? String((listing as unknown as Record<string, unknown>)[f.key] ?? "—") : "—")}
+                      {f.value ?? (f.key ? String((listing as unknown as Record<string, unknown>)[f.key] ?? "â€”") : "â€”")}
                     </div>
                   </div>
                 ))}
@@ -279,7 +327,7 @@ function ListingDetailPage() {
                   <div className="space-y-2">
                     {SCHOOLS.map((s) => (
                       <div key={s.name} className="flex items-center justify-between rounded-lg border border-border p-3">
-                        <div><p className="text-sm font-medium">{s.name}</p><p className="text-xs text-muted-foreground">{s.type} · Ofsted: {s.ofsted}</p></div>
+                        <div><p className="text-sm font-medium">{s.name}</p><p className="text-xs text-muted-foreground">{s.type} Â· Ofsted: {s.ofsted}</p></div>
                         <Badge variant="outline">{s.distance}</Badge>
                       </div>
                     ))}
@@ -290,7 +338,7 @@ function ListingDetailPage() {
               <TabsContent value="documents" className="pt-5">
                 <div className="space-y-3">
                   {[
-                    { label: "EPC Certificate", desc: "Energy Performance Certificate — Rating C" },
+                    { label: "EPC Certificate", desc: "Energy Performance Certificate â€” Rating C" },
                     { label: "Floor Plan", desc: "Full floor plan across all levels (PDF)" },
                     { label: "Title Register", desc: "HM Land Registry title document" },
                   ].map((d) => (
@@ -333,7 +381,7 @@ function ListingDetailPage() {
               </div>
 
               {/* Enquiry form */}
-              <div className="rounded-xl border border-border bg-card p-5">
+              <div ref={enquiryRef} className="rounded-xl border border-border bg-card p-5">
                 <h3 className="mb-4 font-display font-bold text-primary">Send Enquiry</h3>
                 <div className="space-y-3">
                   <Input placeholder="Your name" value={enquiry.name} onChange={(e) => setEnquiry({ ...enquiry, name: e.target.value })} />
@@ -344,7 +392,7 @@ function ListingDetailPage() {
                     <Checkbox checked={enquiry.viewing} onCheckedChange={(v) => setEnquiry({ ...enquiry, viewing: !!v })} />
                     I would like to arrange a viewing
                   </label>
-                  <Button className="w-full bg-gold text-white hover:bg-gold/90">Submit Enquiry</Button>
+                  <Button className="w-full bg-gold text-white hover:bg-gold/90" onClick={() => { if (!enquiry.name || !enquiry.email) { toast.error("Please fill in your name and email."); return; } toast.success("Enquiry sent! The agent will be in touch shortly."); setEnquiry((e) => ({ ...e, name: "", email: "", phone: "" })); }}>Submit Enquiry</Button>
                 </div>
               </div>
 
@@ -365,3 +413,4 @@ function ListingDetailPage() {
     </div>
   );
 }
+
